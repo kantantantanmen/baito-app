@@ -1,0 +1,495 @@
+/* よく使う色をまとめて定義（変数のようなもの） */
+:root {
+  --bg: #ffffff;
+  --text: #1f1f1f;
+  --muted: #70757a;
+  --line: #dadce0;
+  --accent: #2f6f5e;
+  --other-month: #f8f9fa;
+}
+
+* { box-sizing: border-box; }
+
+/* hidden が付いた部品は必ず隠す */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  /* iPhone のホーム画面から開いたとき、上の時計や下のバーに重ならないように余白を取る */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+
+/* ===== 上の帯 ===== */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.topbar h1 { margin: 0; font-size: 1.2rem; font-weight: 500; }
+.month-nav { display: flex; align-items: center; gap: 4px; flex: 1; }
+.icon-btn { border: none; font-size: 1.4rem; line-height: 1; padding: 2px 10px; }
+#month-label { font-size: 1.2rem; margin-left: 8px; }
+#login { background: var(--accent); color: #fff; border: none; }
+#add-shift { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.field input[type="time"],
+.field input[type="date"] {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+/* ===== 左・真ん中・右の3列 ===== */
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr) 300px; /* 左230px、右300px、残りがカレンダー */
+}
+
+.sidebar { padding: 16px; border-right: 1px solid var(--line); }
+.sidebar h2 { margin: 24px 0 8px; font-size: 0.9rem; }
+
+/* 左のメニュー */
+.menu { display: flex; flex-direction: column; gap: 4px; }
+.menu-item {
+  border: none;
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+}
+.menu-item:hover { background: #f1f3f4; }
+.menu-item.active { background: #e3efe9; color: var(--accent); font-weight: 600; }
+
+/* ===== 画面の切り替え =====
+   body に view-settings が付いたら、カレンダーと集計を隠して設定画面を出す */
+.settings, .page { display: none; }
+.view-settings .calendar-view,
+.view-settings .summary,
+.view-settings .calendar-section { display: none; }
+.view-settings .month-nav { visibility: hidden; }
+.view-settings .settings { display: block; grid-column: 2 / -1; }
+
+/* 予定設定・収入確定：カレンダーの代わりに真ん中に出す（右の集計はそのまま） */
+.view-confirm .calendar-view,
+.view-confirm .calendar-section,
+.view-plan .calendar-view,
+.view-plan .calendar-section,
+.view-stats .calendar-view,
+.view-stats .calendar-section { display: none; }
+.view-confirm #confirm,
+.view-plan #plan,
+.view-stats #stats { display: block; }
+
+/* 集計の表 */
+.table-wrap { max-width: 720px; overflow-x: auto; } /* 狭い画面では表だけ横にスクロール */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.data-table th {
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.data-table td { padding: 6px 8px; border-bottom: 1px solid #eee; white-space: nowrap; }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table td.over { color: #d93025; font-weight: 600; }
+.data-table tr.now td { background: #eef5f2; }
+.data-table tr.total td { font-weight: 600; border-top: 2px solid var(--line); border-bottom: none; }
+
+/* 3か月平均が上限を超える期間：続いている行をまとめて赤い枠で囲む */
+tr.ow td { background: #fdecea; }
+tr.ow td:first-child { border-left: 2px solid #d93025; }
+tr.ow td:last-child { border-right: 2px solid #d93025; }
+tr.ow-top td { border-top: 2px solid #d93025; }
+tr.ow-bottom td { border-bottom: 2px solid #d93025; }
+.plan-table td.num.over, .plan-table td.over { color: #d93025; font-weight: 600; }
+.plan-table select { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.plan-table tr.fixed td { color: var(--muted); }
+.plan-table tr.past-month:not(.ow) td { background: #f4f6fb; }   /* 今月までの、確定していない月（赤い枠の中は赤を優先） */
+.fixed-note { display: block; margin-top: 2px; font-size: 0.7rem; color: var(--muted); }
+.fixed-amount { font-variant-numeric: tabular-nums; }
+.avg-range { font-size: 0.7rem; font-weight: 400; color: var(--muted); }
+.band-note { display: block; margin-top: 2px; font-size: 0.7rem; color: #b06000; font-weight: 600; }
+.mode-note { margin: 4px 0 0; }
+.plan-limits .field-label { width: 120px; }
+.plan-limits input[type="number"] { width: 120px; }
+.page > .primary { margin: 0 0 16px; }
+
+.page { padding: 24px; min-width: 0; }
+.page .intro { margin: 0 0 16px; font-size: 0.85rem; max-width: 640px; }
+.page .wp-card { max-width: 640px; }
+.confirm-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.page .wp-card > p { margin: 2px 0 8px; }
+
+/* 予定設定の表 */
+.plan-table { width: 100%; max-width: 760px; margin-bottom: 12px; border-collapse: collapse; font-size: 0.9rem; }
+.plan-table th { padding: 6px 8px; text-align: left; font-size: 0.8rem; font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--line); }
+.plan-table td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+.plan-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plan-table td.over { color: #d93025; font-weight: 600; }
+.plan-table input { width: 110px; font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; }
+.plan-table tr.past td { color: var(--muted); background: #fafafa; }
+.plan-table tr.past input { color: var(--muted); }
+
+.row.dim { color: var(--muted); }
+.priority-now { margin: 4px 0 0; }   /* 集計の切り替えの下の「今選んでいる方」の説明 */
+/* 予定設定の画面：来月から先の月で、予定設定ではなくシフトの額を使うときの一言 */
+.used-note { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+.row.ref { color: var(--muted); font-size: 0.9em; } /* 来月の箱の参考の行 */
+.row.must { color: #d93025; font-weight: 700; }   /* 絶対に超えてはいけない上限 */
+.row.big.must .value { color: #d93025; }           /* 大きく出す上限も赤 */
+.breakdown { margin: 0 0 6px; padding: 4px 8px; background: #f8f9fa; border-radius: 6px; font-size: 0.8rem; }
+.how-to { margin-top: 8px; }
+.how-to > summary { font-weight: 600; }
+.how-to .breakdown { background: #fff; }
+
+/* 見出しと「？」ボタン */
+.box-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.box-head h3 { margin: 0 0 8px; }
+.help-btn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+.help-btn.open { background: var(--accent); color: #fff; border-color: var(--accent); }
+.help-text {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: #f4f6fb;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  color: var(--text);
+}
+.help-text p { margin: 0 0 4px; }
+.help-text p:last-child { margin: 0; }
+.breakdown summary { cursor: pointer; color: var(--muted); }
+.breakdown .row { font-size: 0.8rem; padding: 1px 0; }
+
+/* 勤怠設定の役職 */
+.role-box { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.role-row { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+.role-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0; font-size: 0.85rem; }
+.role-line input[type="text"] { flex: 1; min-width: 0; }
+.role-line input[type="number"] { width: 80px !important; }
+.role-box .muted { margin: 0; }
+.field-note { margin: -2px 0 4px 84px; }
+.income-detail { display: block; font-size: 0.7rem; color: var(--muted); }
+/* 内訳の中の仮シフト（点線で区切って、仮シフトの色にする） */
+.tentative-sub { margin: 6px 0 2px; padding-top: 4px; border-top: 1px dashed #a9b6e0; color: #4a5fa8; font-weight: 600; }
+.breakdown .row.tentative-line { color: #4a5fa8; }
+
+/* 「カレンダー優先 / 予定設定優先」の切り替え */
+.priority { margin-bottom: 12px; }
+.priority-label { display: block; margin-bottom: 4px; font-size: 0.75rem; color: var(--muted); }
+.segmented {
+  display: flex;
+  padding: 3px;
+  background: #eceff1;
+  border-radius: 999px;
+}
+.segmented button {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+}
+.segmented button.active {
+  background: #fff;
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* 「確定」「予定」の札 */
+.badge {
+  display: inline-block;
+  padding: 0 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.6;
+  border-radius: 999px;
+  background: #fef3e0;
+  color: #b06000;
+  vertical-align: 1px;
+}
+.badge.confirmed { background: #e3efe9; color: var(--accent); }
+.badge.expect { background: #eef1fb; color: #4a5fa8; border: 1px dashed #a9b6e0; }    /* 見込み：まだ変わる */
+
+.choices label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.choices input { width: 18px; height: 18px; margin: 0; }
+
+main { display: flex; flex-direction: column; min-width: 0; }
+#message { padding: 4px 16px; min-height: 1.8em; font-size: 0.85rem; color: var(--muted); }
+
+/* ===== 月のカレンダー（7列のマス目） ===== */
+.weekdays, .grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr)); /* 7列を同じ幅に */
+}
+.weekdays div {
+  padding: 4px 0;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  border-left: 1px solid var(--line);
+}
+.weekdays .sun { color: #d93025; }
+.weekdays .sat { color: #1a73e8; }
+
+.grid { flex: 1; }
+
+.day {
+  min-width: 0;
+  min-height: 84px;
+  padding: 2px 4px 4px;
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  overflow: hidden;
+}
+.day { cursor: pointer; }
+.day:hover { background: #f6faf8; }
+.day.other-month { background: var(--other-month); }
+.day.other-month .day-number { color: var(--muted); }
+
+.day-number {
+  width: 24px;
+  height: 24px;
+  margin: 2px auto;
+  line-height: 24px;
+  text-align: center;
+  font-size: 0.75rem;
+  border-radius: 50%;
+}
+.day.today .day-number { background: var(--accent); color: #fff; }
+
+/* 予定1件分 */
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+  padding: 1px 4px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.chip .text { overflow: hidden; text-overflow: ellipsis; } /* はみ出したら「…」 */
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* 時間つきの予定：押せるボタンにする（2行表示） */
+.chip.timed {
+  width: 100%;
+  align-items: flex-start;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chip.timed:hover { background: #f1f3f4; }
+.chip.timed .dot { margin-top: 4px; }
+.chip.shift { background: #eef5f2; }      /* バイトとして計算している予定 */
+.chip-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.chip-time { color: var(--muted); font-size: 0.68rem; }
+.bonus-mark { color: #b06000; font-weight: 700; }
+/* 仮シフト：点線の枠。過ぎたものは薄く */
+.chip.tentative { background: #f7f8fd; border: 1px dashed #a9b6e0; color: #4a5fa8; }
+.chip.tentative:hover { background: #eef1fb; }
+.chip.tentative.past { opacity: 0.45; }
+
+/* カレンダーの下の仮シフトの一覧 */
+.tentative { padding: 12px 16px 24px; border-top: 1px solid var(--line); }
+.tentative-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tentative-head h3 { margin: 0; font-size: 0.95rem; }
+.tentative > p { margin: 4px 0 8px; max-width: 720px; }
+.tentative-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 4px;
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 0.85rem;
+  border: 1px dashed #a9b6e0;
+  border-radius: 8px;
+  background: #f7f8fd;
+}
+.tentative-row:hover { background: #eef1fb; }
+.tentative-row.past { opacity: 0.5; }
+.tentative-when { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tentative-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tentative-row .value { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+
+/* ===== 右：集計パネル ===== */
+.summary {
+  padding: 16px;
+  border-left: 1px solid var(--line);
+  background: #fafafa;
+}
+.panel-box {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.panel-box h3 { margin: 0 0 8px; font-size: 0.9rem; }
+.panel-box p { margin: 6px 0 0; font-size: 0.75rem; }
+.panel-box .subtitle { margin: -4px 0 6px; color: var(--muted); }
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 0.85rem;
+}
+.row .value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row.total { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--line); font-weight: 600; }
+.row.big .value { font-size: 1.3rem; color: var(--accent); }
+.row.over .value { color: #d93025; font-weight: 600; }
+
+.bar { height: 6px; margin: 2px 0 8px; background: #eceff1; border-radius: 3px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); }
+.bar .fill.over { background: #d93025; }
+
+.muted { color: var(--muted); }
+.small { font-size: 0.75rem; }
+
+/* ===== 勤怠設定の画面 ===== */
+.settings { padding: 24px; max-width: 720px; }
+.settings-title { margin: 0 0 16px; font-size: 1.3rem; font-weight: 500; }
+.settings-section { margin-bottom: 32px; }
+.settings-section h3 { margin: 0 0 4px; font-size: 1rem; }
+.settings-section > p { margin: 0 0 12px; font-size: 0.85rem; }
+
+.wp-card {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 0.9rem;
+}
+.field-label { width: 72px; flex-shrink: 0; color: var(--muted); font-size: 0.85rem; }
+.field-body { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.field input[type="text"],
+.field input[type="number"] {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.field input[type="text"] { flex: 1; min-width: 0; }
+.field input[type="number"] { width: 96px; }
+
+.field select {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+/* ===== 予定の詳細画面 ===== */
+dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 0; /* 余白は中の .dialog-body で付ける（外側を押したら閉じる判定のため） */
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする */
+.dialog-body { padding: 20px; }
+.dialog-title { margin: 0; font-size: 1.15rem; }
+.dialog-date { margin: 4px 0 12px; color: var(--muted); font-size: 0.9rem; }
+.dialog-preview {
+  margin: 12px 0 8px;
+  padding: 10px 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+.dialog-preview p { margin: 0; font-size: 0.85rem; }
+.row.strong { font-weight: 600; }
+.dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.primary { background: var(--accent); color: #fff; border: none; }
+.field input:disabled { background: #f1f3f4; }
+.dialog-buttons button:disabled { opacity: 0.45; cursor: default; }
+
+.check { display: inline-flex; align-items: center; gap: 4px; margin-right: 12px; cursor: pointer; }
+.danger { color: #d93025; border-color: #f3c1bd; padding: 4px 12px; font-size: 0.85rem; }
+.note { color: #b06000; }
+.warn { color: #d93025; font-weight: 600; }
+
+/* ===== 少し狭い画面：集計パネルをカレンダーの下に回す ===== */
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 230px minmax(0, 1fr); }
+  .summary {
+    grid-column: 1 / -1; /* 横いっぱいに広げる */
+    border-left: none;
+    border-top: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  .panel-box { margin-bottom: 0; }
+}
+
+/* ===== スマホなど幅が狭いとき：一覧をカレンダーの上に置く ===== */
+@media (max-width: 700px) {
+  .topbar { gap: 8px; }
+  .topbar h1 { display: none; }
+  .layout { grid-template-columns: 1fr; }
+  .view-settings .settings { grid-column: 1 / -1; padding: 16px; }
+  .menu { flex-direction: row; }
+  .field { flex-wrap: wrap; gap: 4px; }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--line); }
+  .day { min-height: 64px; padding: 1px; }
+  .chip { font-size: 0.65rem; padding: 1px 2px; }
+  .dot { display: none; }
+}

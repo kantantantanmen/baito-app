@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <!-- viewport-fit=cover：iPhone のホーム画面から開いたとき、画面の端（切り欠き）まで使う -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>バイト収入管理</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- ホーム画面のアイコンから、アプリのように開くための設定 -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#2f6f5e">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <!-- iPhone 用：ホーム画面のアイコン、アドレスバーなしで開く、アイコンの下の名前 -->
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="バイト収入">
+</head>
+<body>
+  <!-- 上の帯：タイトル、月の移動、ログイン -->
+  <header class="topbar">
+    <h1>バイト収入管理</h1>
+    <div class="month-nav">
+      <button id="today">今日</button>
+      <button id="prev" class="icon-btn" aria-label="前の月">‹</button>
+      <button id="next" class="icon-btn" aria-label="次の月">›</button>
+      <span id="month-label"></span>
+    </div>
+    <button id="add-shift">＋ シフト</button>
+    <button id="login">Google でログイン</button>
+  </header>
+
+  <div class="layout">
+    <!-- 左：メニューとカレンダーの選択 -->
+    <aside class="sidebar">
+      <nav class="menu">
+        <button class="menu-item" data-view="calendar">表示</button>
+        <button class="menu-item" data-view="stats">集計</button>
+        <button class="menu-item" data-view="plan">予定設定</button>
+        <button class="menu-item" data-view="confirm">収入確定</button>
+        <button class="menu-item" data-view="settings">勤怠設定</button>
+      </nav>
+
+      <div class="calendar-section">
+        <h2>マイカレンダー</h2>
+        <div id="calendar-select" class="choices">ログインすると表示されます。</div>
+      </div>
+    </aside>
+
+    <!-- 「表示」の画面：真ん中に月のカレンダー -->
+    <main class="calendar-view">
+      <div id="message"></div>
+      <div class="weekdays">
+        <div class="sun">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="sat">土</div>
+      </div>
+      <div id="calendar-grid" class="grid"></div>
+      <!-- カレンダーの下：仮シフトの一覧（中身は tentative.js が作る） -->
+      <section id="tentative" class="tentative"></section>
+    </main>
+
+    <!-- 「集計」の画面：月平均の表と年合計 -->
+    <section id="stats" class="page"></section>
+
+    <!-- 「予定設定」の画面（真ん中に表示。右の集計はそのまま） -->
+    <section id="plan" class="page"></section>
+
+    <!-- 「収入確定」の画面（真ん中に表示。右の集計はそのまま） -->
+    <section id="confirm" class="page"></section>
+
+    <!-- 右に収入の集計（「表示」と「収入確定」で表示） -->
+    <aside id="summary" class="summary"></aside>
+
+    <!-- 「勤怠設定」の画面 -->
+    <section id="settings" class="settings"></section>
+  </div>
+
+  <!-- 予定を押したときに出る詳細画面（中身は shift-dialog.js が作る） -->
+  <dialog id="shift-dialog"></dialog>
+
+  <!-- 読み込む順番が大事: Google の部品 → 小道具 → 計算 → 画面 -->
+  <script src="https://accounts.google.com/gsi/client"></script>
+  <script src="utils.js"></script>
+  <script src="wage.js"></script>
+  <script src="settings.js"></script>
+  <script src="income.js"></script>
+  <script src="summary.js"></script>
+  <script src="shift-dialog.js"></script>
+  <script src="tentative.js"></script>
+  <script src="add-shift.js"></script>
+  <script src="confirm.js"></script>
+  <script src="planner.js"></script>
+  <script src="plan.js"></script>
+  <script src="stats.js"></script>
+  <script src="google.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

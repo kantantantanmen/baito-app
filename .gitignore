@@ -1,0 +1,8 @@
+# エディタやOSが作るファイル（公開しない）
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code の設定（公開しない）
+.claude/
