@@ -607,7 +607,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
     bottom: 0;
     right: 0;
     z-index: 40;
-    width: min(360px, 88vw);
+    width: min(320px, 86vw); /* 左のメニュー（300px）より少しだけ広く */
     padding: calc(12px + env(safe-area-inset-top)) 12px 24px;
     overflow-y: auto;
     border-top: none;
