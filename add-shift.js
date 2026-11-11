@@ -198,7 +198,21 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     buttons.append(del);
   }
   buttons.append(cancel, saveTentative, add);
-  form.append(buttons);
+
+  // 未定の仮シフト（回数つき）を開いて日付を入れたとき：日付が決まった1回分だけを取り出し、残りは未定のまま残す
+  const splitFrom = tentative && isCountTentative(tentative) ? tentative : null;
+  const restCount = splitFrom ? Math.max(0, (Number(splitFrom.count) || 1) - 1) : 0;
+  const splitNote = el("p", "note small", !splitFrom ? "" : restCount > 0
+    ? `この日の1回分を、日付ありの仮シフト（または Google カレンダーの予定）にします。` +
+      `残りの${restCount}回は、${monthName(parseDate(`${splitFrom.month}-01`))}中・未定のまま残ります。`
+    : "この未定の仮シフトが、この日の仮シフト（または Google カレンダーの予定）になります。");
+  form.append(splitNote, buttons);
+
+  // 未定の仮シフトから1回分を取り出したあとの、元の仮シフトの片付け（残りの回数を減らす。0回なら消す）
+  const finishSplit = () => {
+    if (restCount > 0) upsertTentative({ ...splitFrom, count: restCount });
+    else removeTentative(splitFrom.id);
+  };
 
   // 日付が決まっているか（未定か）に合わせて、出す欄とボタンを切り替える
   const showKind = () => {
@@ -210,6 +224,10 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     countNote.hidden = !isCount;
     calendarField.hidden = isCount; // 日にちがないので Google カレンダーには入れられない
     add.hidden = !canAddToGoogle || isCount;
+    // 未定の仮シフトの日付が決まったとき：何回分のうち1回だけ日付ありにするかを書く
+    splitNote.hidden = !(splitFrom && !isCount);
+    saveTentative.textContent = splitFrom && !isCount ? "この日の仮シフトにする"
+      : tentative ? "仮シフトを更新" : "仮シフトを追加";
   };
 
   // 入力内容から、Google カレンダーに送る予定を作る
@@ -371,9 +389,23 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     add.disabled = true;
     add.textContent = "追加中...";
     try {
-      await createEvent(calendar.value, buildEvent());
+      const created = await createEvent(calendar.value, buildEvent());
+      // 仮シフトで入れた休憩・ボーナス・メモは、予定を押した画面の設定として引き継ぐ
+      if (isTentativeMode && created && created.id) {
+        const e = {};
+        if (breakInput.value !== "") e.breakMin = Number(breakInput.value);
+        if (Number(bonus.value) > 0) e.bonus = Number(bonus.value);
+        if (bonusNote.value.trim()) e.bonusNote = bonusNote.value.trim();
+        if (Object.keys(e).length > 0) {
+          const all = loadEdits();
+          all[`${calendar.value}|${created.id}`] = e;
+          saveEdits(all);
+        }
+      }
       // 仮シフトから入れたなら、仮シフトは消す（二重に数えないため）
-      if (tentative) removeTentative(tentative.id);
+      // 未定の仮シフト（回数つき）なら、1回分だけ減らす
+      if (splitFrom) finishSplit();
+      else if (tentative) removeTentative(tentative.id);
       remember();
       shiftDialog.close();
       onAdded();
@@ -392,7 +424,13 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       error.textContent = p;
       return;
     }
-    upsertTentative(draft());
+    if (splitFrom && kind === "date") {
+      // 未定の仮シフトの1回分に日付が決まった：日付ありの仮シフトを新しく作り、元は1回減らす
+      upsertTentative({ ...draft(), id: undefined });
+      finishSplit();
+    } else {
+      upsertTentative(draft());
+    }
     remember();
     shiftDialog.close();
     onSaved();
