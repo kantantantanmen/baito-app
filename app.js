@@ -635,11 +635,15 @@ function openDrawer() {
   document.body.classList.add("drawer-open");
 }
 function closeDrawer() {
-  document.body.classList.remove("drawer-open");
+  document.body.classList.remove("drawer-open", "summary-open");
 }
 document.getElementById("menu-toggle").onclick = openDrawer;
 document.getElementById("menu-close").onclick = closeDrawer;
 document.getElementById("drawer-backdrop").onclick = closeDrawer;
+
+// ===== スマホの収入（右上の給料袋で右から出てくる引き出し） =====
+document.getElementById("summary-toggle").onclick = () => document.body.classList.add("summary-open");
+document.getElementById("summary-close").onclick = closeDrawer;
 // メニューの画面を選んだら閉じる（カレンダーのチェックは、続けて選べるように閉じない）
 for (const button of document.querySelectorAll(".menu-item")) {
   button.addEventListener("click", closeDrawer);

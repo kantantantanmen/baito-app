@@ -542,6 +542,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
     grid-column: 1 / -1; /* 横いっぱいに広げる */
     border-left: none;
     border-top: 1px solid var(--line);
+  }
+  .summary-body {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 12px;
@@ -550,7 +552,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
 }
 
 /* スマホ用の部品は、広い画面では隠す */
-.menu-toggle, .drawer-head, .login-menu, .drawer-backdrop { display: none; }
+.menu-toggle, .summary-toggle, .drawer-head, .login-menu, .drawer-backdrop { display: none; }
 
 /* ===== スマホなど幅が狭いとき ===== */
 @media (max-width: 700px) {
@@ -589,7 +591,33 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
     z-index: 30;
     background: rgba(0, 0, 0, 0.35);
   }
-  .drawer-open .drawer-backdrop { display: block; }
+  .drawer-open .drawer-backdrop,
+  .summary-open .drawer-backdrop { display: block; }
+
+  /* --- 右の収入：右上の給料袋で右から出てくる引き出しにする --- */
+  .summary-toggle {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; padding: 0; flex-shrink: 0;
+    border: none; color: var(--accent);
+  }
+  .view-settings .summary-toggle { visibility: hidden; } /* 勤怠設定では収入を出さない */
+  .summary {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 40;
+    width: min(360px, 88vw);
+    padding: calc(12px + env(safe-area-inset-top)) 12px 24px;
+    overflow-y: auto;
+    border-top: none;
+    border-left: 1px solid var(--line);
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15);
+    transform: translateX(105%);
+    transition: transform 0.2s ease;
+  }
+  .summary-open .summary { transform: translateX(0); }
+  .summary-body { grid-template-columns: minmax(0, 1fr); } /* 集計の箱は1列に並べる */
   .drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .login-menu { display: block; width: 100%; margin-bottom: 12px; padding: 10px; background: var(--accent); color: #fff; border: none; }
   .menu { flex-direction: column; }
@@ -604,7 +632,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
   .layout > * { min-width: 0; } /* 中身が広くても、画面からはみ出さないようにする */
   .page { padding: 16px; }
   .field { flex-wrap: wrap; gap: 4px; }
-  .summary { padding: 12px; grid-template-columns: minmax(0, 1fr); } /* 集計の箱は1列に並べる */
   #message:empty { display: none; }
 
   /* --- カレンダー：予定は「17:00 たいら」の1行で、色の付いた札にする --- */

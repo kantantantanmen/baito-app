@@ -31,6 +31,15 @@
       <button id="next" class="icon-btn" aria-label="次の月">›</button>
     </div>
     <button id="add-shift" aria-label="シフトを追加">＋<span class="wide-only"> シフト</span></button>
+    <!-- スマホだけ：右上の給料袋。押すと右から収入の集計が出る -->
+    <button id="summary-toggle" class="summary-toggle" aria-label="収入を見る">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 7h14v13H5z"/>
+        <path d="M5 7l3-3h8l3 3"/>
+        <path d="M9.5 10.5l2.5 3.5 2.5-3.5M12 14v4M9.8 15.3h4.4M9.8 17h4.4"/>
+      </svg>
+    </button>
     <button id="login">Google でログイン</button>
   </header>
 
@@ -83,8 +92,14 @@
     <!-- 「収入確定」の画面（真ん中に表示。右の集計はそのまま） -->
     <section id="confirm" class="page"></section>
 
-    <!-- 右に収入の集計（「表示」と「収入確定」で表示） -->
-    <aside id="summary" class="summary"></aside>
+    <!-- 右に収入の集計（勤怠設定のほかは表示）。スマホでは右上の給料袋で右から出てくる引き出し -->
+    <aside id="summary-panel" class="summary">
+      <div class="drawer-head">
+        <strong>収入</strong>
+        <button id="summary-close" class="icon-btn" aria-label="収入を閉じる">×</button>
+      </div>
+      <div id="summary" class="summary-body"></div>
+    </aside>
 
     <!-- 「勤怠設定」の画面 -->
     <section id="settings" class="settings"></section>
