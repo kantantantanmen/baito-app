@@ -529,8 +529,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
 /* 下のボタンは文字を少し小さくして、折り返さずに1行に収める */
 .dialog-buttons button { font-size: 0.85rem; padding: 6px 12px; white-space: nowrap; }
 @media (max-width: 700px) {
-  .dialog-buttons { gap: 4px; }
-  .dialog-buttons button { font-size: 0.78rem; padding: 6px 8px; }
+  .dialog-buttons { gap: 5px; flex-wrap: wrap; } /* とても狭い画面では、はみ出さずに2段にする */
+  .dialog-buttons button { font-size: 0.84rem; padding: 7px 9px; }
 }
 .primary { background: var(--accent); color: #fff; border: none; }
 .field input:disabled { background: #f1f3f4; }
