@@ -133,7 +133,7 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
       "まだ Google カレンダーに入れていない、入るつもりのシフトです。" +
       "「来月の収入（予定）」以外の計算（今月の見込み・上限・集計・予定設定）に、カレンダーのシフトと一緒に入ります。" +
       "日付が過ぎた仮シフトは数えません。シフトが決まったら、押して「Google カレンダーに追加」を選ぶと、仮シフトは消えてカレンダーの予定になります。" +
-      "日付がまだ決まっていないときは、日付の「未定」にチェックすると、月と回数だけで登録できます（その月の残りの日に均等に割り振って計算します）。"),
+      "日付がまだ決まっていないときは、日付の「未定」にチェックすると、月だけで登録できます（その月の残りの日の真ん中あたりで計算します）。"),
   );
 
   if (list.length === 0) {
@@ -151,8 +151,9 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
     let amount = "バイト先が見つかりません";
     if (past) amount = "過ぎた仮シフト（数えない）";
     else if (found) amount = formatYen(shifts.reduce((s, x) => s + x.pay, 0));
+    // 日付が未定のものは「12月中・日付未定 17:00〜22:00」（前のしくみの何回分かのものは「× 3回」も付ける）
     const when = counted
-      ? `${monthName(parseDate(`${t.month}-01`))}中 ${t.start}〜${t.end} × ${t.count}回`
+      ? `${monthName(parseDate(`${t.month}-01`))}中・日付未定 ${t.start}〜${t.end}${Number(t.count) > 1 ? ` × ${t.count}回` : ""}`
       : `${shortDate(t.date)} ${t.start}〜${t.end}`;
     row.append(
       el("span", "tentative-when", when),

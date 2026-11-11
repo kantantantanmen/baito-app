@@ -143,9 +143,9 @@ function incomeBox(title, subtitle, income, month, info, slot, extraRows = [], t
     for (const { t, shift, count } of tentatives) {
       const label = el("span", "income-label");
       const who = [shift.place, shift.role].filter(Boolean).join(" ");
-      // 回数で決めたものは「12月中 17:00-22:00 × 4回」、日付で決めたものは「12/5 17:00-22:00」
+      // 日付が未定のものは「12月中・日付未定 17:00-22:00」、日付ありは「12/5 17:00-22:00」
       const when = isCountTentative(t)
-        ? `${monthName(parseDate(`${t.month}-01`))}中 ${t.start}-${t.end} × ${count}回`
+        ? `${monthName(parseDate(`${t.month}-01`))}中・日付未定 ${t.start}-${t.end}${count > 1 ? ` × ${count}回` : ""}`
         : `${shortDate(t.date)} ${t.start}-${t.end}`;
       label.append(`${when} ${who}`);
       label.append(el("span", "income-detail", `${shortDate(shift.payDate)}振込 ・ ${formatHours(shift.workMin)}`));
