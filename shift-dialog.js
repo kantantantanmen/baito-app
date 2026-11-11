@@ -37,6 +37,33 @@ function eventTimes(day, startTime, endTime) {
   };
 }
 
+// ===== シフトの画面で共通の部品（シフトの追加・編集、仮シフトの追加・編集で同じ形にする） =====
+// 項目の順番：日付 → 時間 → バイト先 → 役職 → 休憩 → ボーナス → メモ → 計算結果 → ボタン
+// ボタンの順番（左から）：シフトとして追加 → 更新 → 削除 → 閉じる
+
+// 画面の見出し。開いたときに入力欄（日付など）ではなく見出しを選んでおく
+// （日付の欄が選ばれると、スマホでは最初からカレンダーが出てしまうため）
+function dialogHeading(text) {
+  const h = el("h2", "dialog-title", text);
+  h.tabIndex = -1;
+  h.autofocus = true;
+  return h;
+}
+
+// 計算結果の行（振込予定日は呼ぶ側で足す）
+function shiftPreviewRows(preview, shift, totalLabel = "合計") {
+  addRow(preview, "拘束時間", formatHours(shift.spanMin));
+  addRow(preview, "休憩", formatHours(shift.breakMin));
+  addRow(preview, "働く時間", formatHours(shift.workMin), "strong");
+  if (shift.nightMin) addRow(preview, "うち夜間", formatHours(shift.nightMin));
+  if (shift.overtimeMin) addRow(preview, "うち残業", formatHours(shift.overtimeMin));
+  addRow(preview, shift.payType === "daily" ? "日給" : "給料", formatYen(shift.basePay));
+  if (shift.allowance) addRow(preview, "役職の手当", formatYen(shift.allowance));
+  if (shift.transport) addRow(preview, "交通費", formatYen(shift.transport));
+  if (shift.bonus) addRow(preview, "ボーナス", formatYen(shift.bonus));
+  addRow(preview, totalLabel, formatYen(shift.pay), "total big");
+}
+
 // 詳細画面を開く。設定が変わったら onChange、予定を削除したり日時を変えたりしたら onReload を呼ぶ
 function openShiftDialog(item, onChange, onReload = () => {}) {
   const key = editKey(item);
@@ -54,26 +81,16 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
   form.method = "dialog"; // このフォームのボタンを押すと画面が閉じる
 
   // --- 見出し：予定名 ---
-  form.append(el("h2", "dialog-title", original.summary || "（タイトルなし）"));
+  form.append(dialogHeading(original.summary || "（タイトルなし）"));
 
-  // --- 日付と時間（変えたら「更新」で Google カレンダーの予定も直す） ---
+  // --- 日付と時間（変えたら「更新」で Google カレンダーの予定も直す。書き込めないカレンダーは変えられない） ---
   const dayInput = el("input");
   dayInput.type = "date";
   dayInput.value = dateKey(start);
-  const startInput = el("input");
-  startInput.type = "time";
-  startInput.value = hhmm(start);
-  const endInput = el("input");
-  endInput.type = "time";
-  endInput.value = hhmm(end);
-  if (canWrite) {
-    const times = el("span", "time-range");
-    times.append(startInput, "〜", endInput);
-    form.append(field("日付", dayInput), field("時間", times));
-  } else {
-    form.append(el("p", "dialog-date",
-      `${start.getMonth() + 1}月${start.getDate()}日（${WEEKDAYS[start.getDay()]}） ${hhmm(start)}〜${hhmm(end)}`));
-  }
+  const startInput = timeInput(hhmm(start));
+  const endInput = timeInput(hhmm(end));
+  dayInput.disabled = startInput.disabled = endInput.disabled = !canWrite;
+  form.append(field("日付", dayInput), field("時間", startInput, "〜", endInput));
   // 日時が元の予定から変わったか
   const timeChanged = () => canWrite &&
     (dayInput.value !== dateKey(start) || startInput.value !== hhmm(start) || endInput.value !== hhmm(end));
@@ -135,7 +152,7 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
 
   // --- ボタン ---
   // 入力はすぐには保存しない。「更新」を押したら保存して、カレンダーと集計を計算し直す
-  const close = el("button", "", "やめる"); // 押すと、入力を保存せずに閉じる
+  const close = el("button", "", "閉じる"); // 押すと、入力を保存せずに閉じる
   const save = el("button", "primary", "更新");
   save.type = "button";
   const deleteError = el("p", "warn");
@@ -169,10 +186,11 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
     else onChange();
   };
   const buttons = el("div", "dialog-buttons");
+  buttons.append(save);
 
   // 予定そのものを Google カレンダーから消す（書き込めるカレンダーの予定だけ）
   if (canWrite) {
-    const del = el("button", "danger", "シフトを削除");
+    const del = el("button", "danger", "削除");
     del.type = "button";
     del.onclick = async () => {
       del.disabled = true;
@@ -188,12 +206,12 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
       } catch (err) {
         deleteError.textContent = err.message;
         del.disabled = false;
-        del.textContent = "シフトを削除";
+        del.textContent = "削除";
       }
     };
     buttons.append(del);
   }
-  buttons.append(close, save);
+  buttons.append(close);
   // 入力欄で Enter を押したときも「更新」と同じにする
   form.onsubmit = (submitEvent) => {
     submitEvent.preventDefault();
@@ -224,17 +242,7 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
     breakInput.placeholder = String(shift.autoBreak);
     breakHint.textContent = `空欄なら勤怠設定どおり（${formatHours(shift.autoBreak)}）`;
 
-    addRow(preview, "拘束時間", formatHours(shift.spanMin));
-    addRow(preview, "休憩", formatHours(shift.breakMin));
-    addRow(preview, "働く時間", formatHours(shift.workMin), "strong");
-    if (shift.role) addRow(preview, "役職", shift.role);
-    if (shift.nightMin) addRow(preview, "うち夜間", formatHours(shift.nightMin));
-    if (shift.overtimeMin) addRow(preview, "うち残業", formatHours(shift.overtimeMin));
-    addRow(preview, shift.payType === "daily" ? "日給" : "給料", formatYen(shift.basePay));
-    if (shift.allowance) addRow(preview, "役職の手当", formatYen(shift.allowance));
-    if (shift.transport) addRow(preview, "交通費", formatYen(shift.transport));
-    if (shift.bonus) addRow(preview, "ボーナス", formatYen(shift.bonus));
-    addRow(preview, "合計", formatYen(shift.pay), "total big");
+    shiftPreviewRows(preview, shift);
     addRow(preview, "振込予定日", shortDate(shift.payDate));
   };
 

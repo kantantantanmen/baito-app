@@ -118,6 +118,16 @@ function field(labelText, ...children) {
   return row;
 }
 
+// 入力欄の行の最後に「？」を付け、押すとその下に説明が出るようにする（行と説明をまとめて返す）
+function fieldWithHelp(row, key, lines) {
+  const { button, text } = helpParts(`field:${key}`, lines);
+  row.querySelector(".field-body").append(button);
+  text.classList.add("field-help");
+  const box = document.createDocumentFragment();
+  box.append(row, text);
+  return box;
+}
+
 // ===== バイト先1件分のカード =====
 // save：保存して計算し直す、rerender：設定画面を作り直す
 function workplaceCard(list, i, save, rerender) {
@@ -161,10 +171,10 @@ function workplaceCard(list, i, save, rerender) {
   wageField.append(
     field("時給", wage, "円"),
     field("夜間", nightStart, "〜", nightEnd, "は時給", nightWage, "円"),
-    field("残業", "1日", overtimeAfter, "時間を超えた分は時給", overtimeWage, "円"),
-    el("p", "muted small field-note",
-      "夜間・残業の時給は、最初は基本の時給と同じ金額（1倍）です。割増がある場合は金額を書き換えてください。" +
-      "夜間と残業が重なった時間は、両方の上乗せ分を足します。"),
+    fieldWithHelp(field("残業", "1日", overtimeAfter, "時間を超えた分は時給", overtimeWage, "円"), `night:${i}`, [
+      "夜間・残業の時給は、最初は基本の時給と同じ金額（1倍）です。割増がある場合は金額を書き換えてください。",
+      "夜間と残業が重なった時間は、両方の上乗せ分を足します。",
+    ]),
   );
 
   const dailyPay = numberInput(wp.dailyPay, 0);
@@ -191,19 +201,19 @@ function workplaceCard(list, i, save, rerender) {
   const weekPay = selectInput(WEEKDAY_CHOICES, wp.weekPayDay);
   const weekFields = el("div");
   weekFields.append(
-    field("週払い", weekClose, "締め・", weekOffset, "の", weekPay, "払い"),
-    el("p", "muted small field-note", "週は月曜〜日曜で数えます。締め日がある週が「当週」、その次の週が「翌週」です。"),
+    fieldWithHelp(field("週払い", weekClose, "締め・", weekOffset, "の", weekPay, "払い"), `week:${i}`,
+      "週は月曜〜日曜で数えます。締め日がある週が「当週」、その次の週が「翌週」です。"),
   );
 
   // 自動確定のタイミング（翌月払い以外で選べる。当日払いは説明だけ）
   const autoTiming = selectInput(AUTO_TIMING_CHOICES, wp.autoConfirmTiming);
   const autoTimingFields = el("div");
   autoTimingFields.append(
-    field("自動確定", autoTiming),
-    el("p", "muted small field-note",
-      "◯月の収入を、カレンダーからの額で自動確定するタイミングです。" +
-      "「すぐ」：今日働いた分の振込日が◯月より後になった時点で確定します（もう◯月の収入は増えないため）。" +
-      "「その月が終わったら」：◯月が終わった時点でまとめて確定します。"),
+    fieldWithHelp(field("自動確定", autoTiming), `auto:${i}`, [
+      "◯月の収入を、カレンダーからの額で自動確定するタイミングです。",
+      "「すぐ」：今日働いた分の振込日が◯月より後になった時点で確定します（もう◯月の収入は増えないため）。",
+      "「その月が終わったら」：◯月が終わった時点でまとめて確定します。",
+    ]),
   );
   const autoTimingNote = el("p", "muted small field-note");
 
@@ -256,9 +266,7 @@ function workplaceCard(list, i, save, rerender) {
   };
   roleBox.append(
     addRole,
-    el("p", "muted small",
-      "予定名に役職名が入っていると、その役職で計算します（例：「カフェ キッチン」）。予定を押した画面で選び直すこともできます。" +
-      "時給が空欄なら基本の時給です。"),
+    el("p", "muted small", "予定名に役職名が入っていると、その役職で計算します（例：「カフェ キッチン」）。"),
   );
 
   card.append(
@@ -419,8 +427,10 @@ function renderSettings(container, onChange) {
   // --- バイト先 ---
   const wpSection = el("section", "settings-section");
   wpSection.append(
-    el("h3", "", "バイト先"),
-    el("p", "muted", "カレンダーの予定名に「予定名」の文字が含まれていると、そのバイト先のシフトとして計算します。変更は自動で保存されます。"),
+    titleWithHelp("h3", "バイト先", [
+      "カレンダーの予定名に「予定名」の文字が含まれていると、そのバイト先のシフトとして計算します。",
+      "変更は自動で保存されます。",
+    ], "settings-wp"),
   );
   if (list.length === 0) {
     wpSection.appendChild(el("p", "note", "まだバイト先が登録されていません。"));
@@ -451,12 +461,13 @@ function renderSettings(container, onChange) {
     onChange();
   };
   limitSection.append(
-    el("h3", "", "扶養の上限"),
+    titleWithHelp("h3", "扶養の上限", [
+      "月平均の上限：3か月平均がこの金額を超えないかをチェックします。",
+      "年の上限：1〜12月の収入の合計の上限です。",
+    ], "settings-limit"),
     field("月平均の上限", limit, "円"),
     field("年の上限", yearLimit, "円"),
-    el("p", "muted",
-      "月平均の上限：3か月平均がこの金額を超えないかをチェックします。年の上限：1〜12月の収入の合計の上限です。" +
-      "目安：年130万円なら月108,000円、19〜22歳で年150万円なら月125,000円。"),
+    el("p", "muted", "目安：年130万円なら月108,000円、19〜22歳で年150万円なら月125,000円。"),
   );
   container.appendChild(limitSection);
 }

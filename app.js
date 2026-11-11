@@ -274,7 +274,8 @@ grid.addEventListener("pointercancel", () => { swipeStart = null; });
 function renderGrid(byDay) {
   const { start, weeks } = gridRange();
   monthLabel.textContent = `${viewMonth.getFullYear()}年${viewMonth.getMonth() + 1}月`;
-  grid.style.gridTemplateRows = `repeat(${weeks}, 1fr)`;
+  // 全体の高さは CSS で決めてあるので、週の数（5か6）で割る。予定が多くても行は広がらない
+  grid.style.gridTemplateRows = `repeat(${weeks}, minmax(0, 1fr))`;
   grid.textContent = "";
 
   const todayKey = dateKey(new Date());

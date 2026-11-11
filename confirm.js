@@ -28,16 +28,14 @@ function confirmCard(month, r, closed, onChange) {
   if (isExpected) {
     addRow(card, "見込みとして使う額", formatYen(r.confirmed), "total");
     card.append(el("p", "note",
-      "この月の収入はまだ増えるので、カレンダー＋仮シフトの額を見込みとして使っています（計算上は確定と同じ）。" +
-      "入るつもりのシフトは、カレンダーの下の「仮シフト」で足せます。" +
-      "この月の収入が増えなくなった時点で、カレンダーからの額での自動確定に切り替わります。"));
+      "まだ増えるので、カレンダー＋仮シフトの額を見込みとして使っています。増えなくなったら自動で確定します。"));
   }
 
   // まだ締まっていない月は、自分では確定できない（今月は見込み、先の月はカレンダーの額）
   if (!closed) {
     if (!isExpected) {
       card.append(el("p", "note",
-        "この月の収入はまだ増えるので、確定はできません。もう勤務が入らなくなった時点で、カレンダーからの額で自動で確定します。"));
+        "まだ増えるので確定できません。増えなくなったら自動で確定します。"));
     }
     return card;
   }
@@ -56,7 +54,7 @@ function confirmCard(month, r, closed, onChange) {
 
   if (isAuto) {
     card.append(el("p", "note",
-      "カレンダーから自動で確定（カレンダーを直すと金額も変わります）。給与明細で確かめたら「この金額で確定」を押してください。"));
+      "自動で確定しました。給与明細で確かめたら「この金額で確定」を押してください。"));
   }
 
   // カレンダーからの額と確定額がずれていたら差を表示する（見込みは上に出しているので出さない）
@@ -87,12 +85,13 @@ function renderConfirm(container, income, viewMonth, workplaces, onChange) {
 
   container.textContent = "";
   container.append(
-    el("h2", "settings-title", `${viewMonth.getFullYear()}年${monthName(viewMonth)}の収入確定`),
+    titleWithHelp("h2", `${viewMonth.getFullYear()}年${monthName(viewMonth)}の収入確定`, [
+      "確定した金額は、集計や上限の計算でカレンダーからの額の代わりに使われます。",
+      "もう勤務が入らなくなった月は、カレンダーからの額で自動で確定します（「自動確定」。計算上は確定と同じ）。",
+      "今月の収入でまだ増える分は、カレンダー＋仮シフトの額を「見込み」として使います。上の ‹ › で月を切り替えられます。",
+    ], "confirm"),
     el("p", "muted intro",
-      `${monthName(viewMonth)}に振り込まれる給料を、給与明細や通帳で確認したら確定してください。` +
-      "確定した金額は、集計や上限の計算でカレンダーからの額の代わりに使われます。" +
-      "もう勤務が入らなくなった月は、カレンダーからの額で自動で確定します（「自動確定」。計算上は確定と同じ）。" +
-      "今月の収入でまだ増える分は、カレンダー＋仮シフトの額を「見込み」として使います。上の ‹ › で月を切り替えられます。"),
+      `${monthName(viewMonth)}に振り込まれる給料を、給与明細や通帳で確認したら確定してください。`),
   );
 
   if (rows.length === 0) {

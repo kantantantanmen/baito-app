@@ -127,15 +127,16 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
   const head = el("div", "tentative-head");
   const addButton = el("button", "", "＋ 仮シフト");
   addButton.onclick = onAdd;
-  head.append(el("h3", "", `${monthName(viewMonth)}の日付未定の仮シフト`), addButton);
-  container.append(
-    head,
-    el("p", "muted small",
-      "仮シフト：まだ Google カレンダーに入れていない、入るつもりのシフトです。" +
-      "「来月の収入（予定）」以外の計算（今月の見込み・上限・集計・予定設定）に、カレンダーのシフトと一緒に入ります。" +
-      "日付が決まっている仮シフトは、カレンダーに点線の枠で出ます（押すと直す・削除・Google カレンダーに追加ができます。日付が過ぎたものは数えません）。" +
-      "ここには、日付の「未定」にチェックして月だけで登録したものが出ます（その月の残りの日の真ん中あたりで計算します）。"),
-  );
+  const { button: helpButton, text: helpText } = helpParts("help:tentative", [
+    "仮シフト：まだ Google カレンダーに入れていない、入るつもりのシフトです。このアプリの中だけに保存します。",
+    "「来月の収入（予定）」以外の計算（今月の見込み・上限・集計・予定設定）に、カレンダーのシフトと一緒に入ります。",
+    "日付が決まっている仮シフトは、カレンダーに点線の枠で出ます（日付が過ぎたものは数えません）。",
+    "ここには、日付を「未定」にして月だけで登録したものが出ます（その月の残りの日の真ん中あたりで働いたとして計算します）。",
+  ]);
+  const title = el("div", "help-head");
+  title.append(el("h3", "", `${monthName(viewMonth)}の日付未定の仮シフト`), helpButton);
+  head.append(title, addButton);
+  container.append(head, helpText);
 
   if (list.length === 0) {
     container.append(el("p", "muted small", "この月の日付未定の仮シフトはありません。「＋ 仮シフト」から追加できます。"));

@@ -97,3 +97,38 @@ function el(tag, className, text) {
   if (text !== undefined) e.textContent = text;
   return e;
 }
+
+// ===== 「？」を押すと出る説明 =====
+// 開いている説明を覚えておく（画面が作り直されても閉じないように）。key は説明ごとの名前
+const openedHelps = new Set();
+
+// 「？」ボタンと、押すと出る説明の欄を作る → { button, text }
+// lines：説明の文（1つでも、配列で何段落でもよい）
+function helpParts(key, lines) {
+  const button = el("button", "help-btn", "？");
+  button.type = "button";
+  button.title = "説明を見る";
+  const text = el("div", "help-text");
+  for (const line of [].concat(lines)) text.append(el("p", "", line));
+  const show = (open) => {
+    text.hidden = !open;
+    button.classList.toggle("open", open);
+    if (open) openedHelps.add(key);
+    else openedHelps.delete(key);
+  };
+  show(openedHelps.has(key));
+  button.onclick = () => show(text.hidden);
+  return { button, text };
+}
+
+// 見出し＋「？」。押すと見出しの下に説明が出る。見出しと説明をまとめて返す
+//   例：container.append(titleWithHelp("h3", "月平均", ["説明1", "説明2"]))
+//   key：開いた状態を覚える名前（見出しに月の名前などが入って変わるときに渡す）
+function titleWithHelp(tag, title, lines, key = title) {
+  const { button, text } = helpParts(`help:${key}`, lines);
+  const head = el("div", "help-head");
+  head.append(el(tag, tag === "h2" ? "settings-title" : "", title), button); // h2 は画面の見出し
+  const box = document.createDocumentFragment();
+  box.append(head, text);
+  return box;
+}

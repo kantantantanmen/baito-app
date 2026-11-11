@@ -60,7 +60,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   shiftDialog.textContent = "";
   const form = el("form", "dialog-body");
   form.method = "dialog";
-  form.append(el("h2", "dialog-title", dialogTitle));
+  form.append(dialogHeading(dialogTitle));
 
   // --- 入力欄 ---
   const date = el("input");
@@ -77,7 +77,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   undecidedLabel.append(undecided, "未定");
   undecided.onchange = () => {
     kind = undecided.checked ? "count" : "date";
-    if (kind === "date" && !date.value) date.value = day; // 未定をやめたら、日付を入れ直す
+    // 未定をやめたら、日付を入れ直す（その月の1日が過ぎていれば今日。過ぎた日付は仮シフトにできないため）
+    if (kind === "date") {
+      const first = `${month.value || day.slice(0, 7)}-01`;
+      if (!date.value || date.value < today) date.value = first < today ? today : first;
+    }
     showKind();
     update();
   };
@@ -124,7 +128,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     end.value = tentative.end;
   }
 
-  // 休憩・ボーナス・メモ（仮シフトの画面だけ。予定を押した画面と同じ）
+  // 休憩・ボーナス・メモ（予定を押した画面と同じ。Google カレンダーに追加したら、その予定の設定として残す）
   const breakInput = numberInput(tentative && tentative.breakMin !== undefined ? tentative.breakMin : "", 0);
   breakInput.step = 5;
   const breakHint = el("span", "muted small");
@@ -137,14 +141,10 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   //   ・シフトを追加する画面：できる（カレンダーがなければ上で止めている）
   //   ・仮シフトを追加する画面：できない（仮シフトとして保存するだけ）
   //   ・保存した仮シフト（日付で決めたもの）を押した画面：ログインしていればできる（入れたら仮シフトは消える）
+  // Google カレンダーに入れるときは、チェックを入れた書き込めるカレンダー（前回入れたものがあればそれ）に入れる
   const canAddToGoogle = calendars.length > 0 && (!isTentativeMode || !!tentative);
-  let calendar = null;
-  let calendarField = el("span"); // カレンダーを選ばないときは空
-  if (canAddToGoogle) {
-    const firstCal = calendars.some(c => c.id === last.calendarId) ? last.calendarId : calendars[0].id;
-    calendar = selectInput(calendars.map(c => [c.id, c.summary]), firstCal);
-    calendarField = field("カレンダー", calendar);
-  }
+  const calendarId = !canAddToGoogle ? null
+    : calendars.some(c => c.id === last.calendarId) ? last.calendarId : calendars[0].id;
 
   const preview = el("div", "dialog-preview");
   const error = el("p", "warn");
@@ -152,40 +152,36 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   const dateField = isTentativeMode ? field("日付", date, undecidedLabel) : field("日付", date);
   const monthField = field("働く月", month);
   const countNote = el("p", "muted small",
-    "日付が未定なので、その月の残りの日（今月なら今日から月末まで）の真ん中あたりの日に働いたとして計算します" +
-    "（週払い・当日払いでも、振り込まれる月が決まるように）。日付が決まったら、押して「未定」を外し、日付を入れてください。" +
-    (keptCount > 1 ? `この仮シフトは前のしくみで入れた${keptCount}回分です。` : ""));
-  const extraFields = [
-    field("休憩", breakInput, "分", breakHint),
-    field("ボーナス", bonus, "円"),
-    field("メモ", bonusNote),
-  ];
+    "日付が決まったら「未定」を外して日付を入れてください。" +
+    (tentative ? "「シフトとして追加」もできるようになります。" : "") +
+    (keptCount > 1 ? `（この仮シフトは前のしくみで入れた${keptCount}回分です）` : ""));
 
+  // 項目の順番は、予定を押した画面と同じ（日付 → 時間 → バイト先 → 役職 → 休憩 → ボーナス → メモ）
   form.append(
     dateField,
     monthField,
+    field("時間", start, "〜", end),
     field("バイト先", place),
     roleField,
-    field("時間", start, "〜", end),
+    field("休憩", breakInput, "分", breakHint),
+    field("ボーナス", bonus, "円"),
+    field("メモ", bonusNote),
+    countNote,
+    preview,
+    error,
   );
-  if (isTentativeMode) form.append(...extraFields);
-  form.append(calendarField, countNote, preview, error);
-  if (isTentativeMode) {
-    form.append(el("p", "muted small",
-      "仮シフト：まだ決まっていない、入るつもりのシフトです。このアプリの中だけに保存して、" +
-      "「来月の収入（予定）」以外の計算に入ります。"));
-  }
 
-  // --- ボタン ---
-  const cancel = el("button", "", "やめる");
+  // --- ボタン（左から：シフトとして追加 → 更新 → 削除 → 閉じる） ---
+  const cancel = el("button", "", "閉じる");
   cancel.type = "button";
   cancel.onclick = () => shiftDialog.close();
-  const add = el("button", "primary", "Google カレンダーに追加");
+  const add = el("button", "primary", "シフトとして追加"); // Google カレンダーに予定を作る
   add.type = "button";
-  const saveTentative = el("button", canAddToGoogle ? "" : "primary", tentative ? "仮シフトを更新" : "仮シフトを追加");
+  const saveTentative = el("button", canAddToGoogle ? "" : "primary", tentative ? "更新" : "仮シフトを追加");
   saveTentative.type = "button";
   const tentativeAllowed = isTentativeMode; // シフトを追加する画面では仮シフトにしない
   const buttons = el("div", "dialog-buttons");
+  buttons.append(add, saveTentative);
   if (tentative) {
     const del = el("button", "danger", "削除");
     del.type = "button";
@@ -196,16 +192,16 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     };
     buttons.append(del);
   }
-  buttons.append(cancel, saveTentative, add);
+  buttons.append(cancel);
 
   // 未定の仮シフトを開いて日付を入れたとき：その日の仮シフト（または予定）になる
   // （前のしくみで何回分かまとめて入れたものは、1回分だけ取り出して残りは未定のまま残す）
   const splitFrom = tentative && isCountTentative(tentative) ? tentative : null;
   const restCount = splitFrom ? Math.max(0, (Number(splitFrom.count) || 1) - 1) : 0;
-  const splitNote = el("p", "note small", !splitFrom ? "" : restCount > 0
+  const splitNote = el("p", "note small", restCount > 0
     ? `この日の1回分を、日付ありの仮シフト（または Google カレンダーの予定）にします。` +
       `残りの${restCount}回は、${monthName(parseDate(`${splitFrom.month}-01`))}中・未定のまま残ります。`
-    : "日付が未定だった仮シフトが、この日の仮シフト（または Google カレンダーの予定）になります。");
+    : "");
   // 保存した仮シフトを開いたのに「Google カレンダーに追加」が出せないとき、その理由とやること
   //   ・日付が未定：「未定」を外して日付を入れる
   //   ・ログインしていない（通行証は1時間で切れる）：ログインしてから開き直す
@@ -231,22 +227,15 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     if (isCount && date.value) month.value = date.value.slice(0, 7) < thisMonth ? thisMonth : date.value.slice(0, 7);
     monthField.hidden = !isCount;
     countNote.hidden = !isCount;
-    calendarField.hidden = isCount; // 日にちがないので Google カレンダーには入れられない
-    add.hidden = !canAddToGoogle || isCount;
-    // 未定の仮シフトの日付が決まったとき：何回分のうち1回だけ日付ありにするかを書く
-    splitNote.hidden = !(splitFrom && !isCount);
-    saveTentative.textContent = splitFrom && !isCount ? "この日の仮シフトにする"
-      : tentative ? "仮シフトを更新" : "仮シフトを追加";
+    add.hidden = !canAddToGoogle || isCount; // 日にちがないので Google カレンダーには入れられない
+    // 未定の仮シフトの日付が決まったとき：何回分のうち1回だけ日付ありにするかを書く（前のしくみの分だけ）
+    splitNote.hidden = !(splitFrom && !isCount && restCount > 0);
 
     googleHint.textContent = "";
-    if (tentative && isCount) {
-      googleHint.append(el("p", "muted small",
-        "Google カレンダーに入れる（普通のシフトにする）には、日付の「未定」を外して日付を入れてください。"));
-    } else if (tentative && calendars.length === 0) {
+    // （日付が未定のときは、上の「日付が決まったら…」の一言で伝える）
+    if (tentative && !isCount && calendars.length === 0) {
       googleHint.append(
-        el("p", "muted small",
-          "Google カレンダーに入れる（普通のシフトにする）には、ログインが必要です（ログインは1時間で切れます）。" +
-          "ログインしたら、もう一度この仮シフトを押してください。"),
+        el("p", "muted small", "「シフトとして追加」するには、ログインしてから、もう一度この仮シフトを押してください。"),
         loginButton,
       );
     }
@@ -283,11 +272,9 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     } else {
       t.date = date.value;
     }
-    if (isTentativeMode) {
-      if (breakInput.value !== "") t.breakMin = Number(breakInput.value);
-      if (Number(bonus.value) > 0) t.bonus = Number(bonus.value);
-      if (bonusNote.value.trim()) t.bonusNote = bonusNote.value.trim();
-    }
+    if (breakInput.value !== "") t.breakMin = Number(breakInput.value);
+    if (Number(bonus.value) > 0) t.bonus = Number(bonus.value);
+    if (bonusNote.value.trim()) t.bonusNote = bonusNote.value.trim();
     return t;
   };
 
@@ -318,52 +305,26 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     saveTentative.hidden = !tentativeAllowed || past;
     if (!start.value || !end.value) return;
 
-    // 1回分の給料（回数で決めるときは、その月の1日として計算した目安）
+    // 1回分の給料（予定を押した画面と同じ計算・同じ表示。日付が未定なら、その月の1日として計算した目安）
     const t = draft();
-    let shift;
-    if (isTentativeMode) {
-      if (kind === "count") {
-        if (!month.value) return;
-        shift = countSampleShift(t, loadWorkplaces());
-      } else {
-        if (!date.value) return;
-        shift = tentativeToShift(t, loadWorkplaces());
-      }
-    } else {
-      if (!date.value) return;
-      const ev = buildEvent();
-      // 計算用：時刻を、時差つきの形に直して eventToShift に渡す
-      const forCalc = {
-        summary: ev.summary,
-        start: { dateTime: new Date(ev.start.dateTime).toISOString() },
-        end: { dateTime: new Date(ev.end.dateTime).toISOString() },
-      };
-      shift = eventToShift(forCalc, loadWorkplaces(), { place: place.value });
-    }
+    const isCount = isTentativeMode && kind === "count";
+    if (isCount ? !month.value : !date.value) return;
+    const shift = isCount ? countSampleShift(t, loadWorkplaces()) : tentativeToShift(t, loadWorkplaces());
     if (!shift) return;
 
     breakInput.placeholder = String(shift.autoBreak);
     breakHint.textContent = `空欄なら勤怠設定どおり（${formatHours(shift.autoBreak)}）`;
-    const nextDay = end.value <= start.value ? "（翌日）" : "";
-    addRow(preview, "時間", `${start.value}〜${end.value}${nextDay}`);
-    addRow(preview, "働く時間", `${formatHours(shift.workMin)}（休憩${formatHours(shift.breakMin)}）`);
-    if (shift.nightMin) addRow(preview, "うち夜間", formatHours(shift.nightMin));
-    if (shift.overtimeMin) addRow(preview, "うち残業", formatHours(shift.overtimeMin));
-    if (shift.allowance) addRow(preview, "役職の手当", formatYen(shift.allowance));
-    if (shift.transport) addRow(preview, "交通費", formatYen(shift.transport));
-    if (shift.bonus) addRow(preview, "ボーナス", formatYen(shift.bonus));
+    shiftPreviewRows(preview, shift);
 
-    if (isTentativeMode && kind === "count") {
-      // 日付が未定：仮の日付で計算した額と、振り込まれる月（日付がないので、日ではなく月だけ出す）
+    if (isCount) {
+      // 日付が未定：振り込まれる月（日付がないので、日ではなく月だけ出す）
       const list = tentativeShifts(t, loadWorkplaces());
-      const total = list.reduce((s, x) => s + x.pay, 0);
-      addRow(preview, keptCount > 1 ? `給料の見込み（${keptCount}回分）` : "給料の見込み", formatYen(total), "total big");
+      if (keptCount > 1) addRow(preview, `${keptCount}回分の合計`, formatYen(list.reduce((s, x) => s + x.pay, 0)), "strong");
       const months = [...new Set(list.map(s => s.payDate.slice(0, 7)))].sort();
       if (months.length > 0) {
         addRow(preview, "振り込まれる月", months.map(m => monthName(parseDate(`${m}-01`))).join("・"));
       }
     } else {
-      addRow(preview, "給料の見込み", formatYen(shift.pay), "total big");
       addRow(preview, "振込予定日", shortDate(shift.payDate));
     }
   };
@@ -387,7 +348,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   // 次回の初期値として覚えておく
   const remember = () => {
     last.place = place.value;
-    if (calendar) last.calendarId = calendar.value;
+    if (calendarId) last.calendarId = calendarId;
     last.times[place.value] = { start: start.value, end: end.value };
     last.roles = { ...(last.roles || {}), [place.value]: role.value }; // バイト先ごとの前回の役職
     saveLastShift(last);
@@ -402,16 +363,16 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     add.disabled = true;
     add.textContent = "追加中...";
     try {
-      const created = await createEvent(calendar.value, buildEvent());
-      // 仮シフトで入れた休憩・ボーナス・メモは、予定を押した画面の設定として引き継ぐ
-      if (isTentativeMode && created && created.id) {
+      const created = await createEvent(calendarId, buildEvent());
+      // 入れた休憩・ボーナス・メモは、予定を押した画面の設定として引き継ぐ
+      if (created && created.id) {
         const e = {};
         if (breakInput.value !== "") e.breakMin = Number(breakInput.value);
         if (Number(bonus.value) > 0) e.bonus = Number(bonus.value);
         if (bonusNote.value.trim()) e.bonusNote = bonusNote.value.trim();
         if (Object.keys(e).length > 0) {
           const all = loadEdits();
-          all[`${calendar.value}|${created.id}`] = e;
+          all[`${calendarId}|${created.id}`] = e;
           saveEdits(all);
         }
       }
@@ -425,7 +386,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     } catch (err) {
       error.textContent = err.message;
       add.disabled = false;
-      add.textContent = "Google カレンダーに追加";
+      add.textContent = "シフトとして追加";
     }
   };
   add.onclick = submit;

@@ -56,12 +56,15 @@ function statsPriorityToggle(priority, onChange) {
     };
     group.append(button);
   }
-  box.append(group,
-    el("p", "small priority-use",
-      "カレンダー優先：今入れたシフトだと平均はどうなるか　／　予定設定優先：計画どおりに働いたら平均はどうなるか"),
-    el("p", "muted small priority-now", priority === "plan"
-    ? "予定設定優先：予定設定に入力がある月はその額（一部確定していても）。入力がない月はカレンダー＋仮シフト。"
-    : "カレンダー優先：カレンダー＋仮シフトから計算した額（確定したバイト先は確定額）。シフトがない月だけ予定設定。"));
+  const { button, text } = helpParts("help:stats-priority", [
+    "カレンダー優先：カレンダー＋仮シフトから計算した額（確定したバイト先は確定額）。シフトがない月だけ予定設定の額。",
+    "予定設定優先：予定設定に入力がある月はその額（一部確定していても）。入力がない月はカレンダー優先と同じ。",
+    "今月までの月と全部確定した月は、どちらでも確定額（自動確定・見込みを含む）。",
+  ]);
+  const use = el("div", "help-head");
+  use.append(el("p", "small priority-use",
+    "カレンダー優先：今入れたシフトだと平均はどうなるか　／　予定設定優先：計画どおりに働いたら平均はどうなるか"), button);
+  box.append(group, use, text);
   return box;
 }
 
@@ -85,12 +88,11 @@ function renderStats(container, ctx) {
   // ---------- 月平均の表（表示中の月が入る平均だけ） ----------
   const avgSection = el("section", "settings-section");
   avgSection.append(
-    el("h3", "", `${monthName(m0)}の収入が入る月平均`),
-    el("p", "muted",
-      `${monthName(m0)}の収入が入っている3か月平均だけを出しています。上の ‹ › で月を切り替えられます。` +
-      "今月までの月と全部確定した月は確定額（自動確定・見込みを含む）。来月から先の月は、上の切り替えで決まる額です。" +
-      `上限：月平均 ${formatYen(limit)}。` +
-      "赤い数字は上限超え、3か月平均が上限を超える3か月は赤い枠で囲みます。"),
+    titleWithHelp("h3", `${monthName(m0)}の収入が入る月平均`, [
+      `${monthName(m0)}の収入が入っている3か月平均だけを出しています。上の ‹ › で月を切り替えられます。`,
+      "今月までの月と全部確定した月は確定額（自動確定・見込みを含む）。来月から先の月は、上の切り替えで決まる額です。",
+    ], "stats-avg"),
+    el("p", "muted", `上限：月平均 ${formatYen(limit)}。赤い数字は上限超え、上限を超える3か月は赤い枠で囲みます。`),
   );
 
   const avgTable = el("table", "data-table");
@@ -135,14 +137,15 @@ function renderStats(container, ctx) {
   const year = viewMonth.getFullYear();
   const yearSection = el("section", "settings-section");
   yearSection.append(
-    el("h3", "", `${year}年の収入（1〜12月に振り込まれる分）`),
+    titleWithHelp("h3", `${year}年の収入（1〜12月に振り込まれる分）`, [
+      "確定のみ：確定した金額だけ（自動確定・今月の見込みを含む）。",
+      "カレンダー優先：確定したバイト先は確定額、ほかはカレンダー＋仮シフト（どちらもない月は予定設定）。",
+      "予定設定優先：予定設定に入力がある月は一部確定していても予定設定、入力がない月はカレンダー優先と同じ。",
+      "今月までの月と全部確定した月は、どちらでも確定額（自動確定・見込みを含む）。",
+      "振り込まれた月で数えるので、税金の年収と同じ数え方です。",
+    ], "stats-year"),
     el("p", "small priority-use",
       "カレンダー優先：今入れたシフトだと年の収入はどうなるか　／　予定設定優先：計画どおりに働いたら年の収入はどうなるか"),
-    el("p", "muted",
-      "確定のみ：確定した金額だけ（自動確定・今月の見込みを含む）。カレンダー優先：確定したバイト先は確定額、ほかはカレンダー＋仮シフト（どちらもない月は予定設定）。" +
-      "予定設定優先：予定設定に入力がある月は一部確定していても予定設定、入力がない月はカレンダー優先と同じ。" +
-      "今月までの月と全部確定した月は、どちらでも確定額（自動確定・見込みを含む）。" +
-      "振り込まれた月で数えるので、税金の年収と同じ数え方です。"),
   );
 
   const yearTable = el("table", "data-table");

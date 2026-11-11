@@ -187,6 +187,14 @@ tr.ow-bottom td { border-bottom: 2px solid #d93025; }
   font-size: 0.75rem;
   color: var(--text);
 }
+/* 見出しのすぐ右に「？」（集計・予定設定・収入確定・勤怠設定・仮シフト） */
+.help-head { display: flex; align-items: center; gap: 8px; }
+.help-head > :first-child { margin-bottom: 8px; }
+.help-head .help-btn { margin-bottom: 8px; }
+.help-head + .help-text { max-width: 760px; font-size: 0.8rem; }
+.dialog-title:focus { outline: none; } /* 開いたときに見出しを選んでおくが、枠は出さない */
+.help-text.field-help { max-width: 560px; font-size: 0.8rem; }
+.field-body .help-btn { margin-left: 4px; }
 .help-text p { margin: 0 0 4px; }
 .help-text p:last-child { margin: 0; }
 .breakdown summary { cursor: pointer; color: var(--muted); }
@@ -272,8 +280,10 @@ main { display: flex; flex-direction: column; min-width: 0; }
 .weekdays .sun { color: #d93025; }
 .weekdays .sat { color: #1a73e8; }
 
+/* カレンダー全体の高さは決めておき、週が5行でも6行でも同じ高さにする（1行の高さが変わる） */
 .grid {
-  flex: 1;
+  flex: none;
+  height: 540px;
   touch-action: pan-y;          /* 横に指を滑らせたときは、画面を動かさずに月を替える */
   -webkit-user-select: none;    /* 長押しで文字が選ばれないように */
   user-select: none;
@@ -288,7 +298,7 @@ main.calendar-view { overflow-x: hidden; }
 
 .day {
   min-width: 0;
-  min-height: 84px;
+  min-height: 0;
   padding: 2px 4px 4px;
   border-left: 1px solid var(--line);
   border-top: 1px solid var(--line);
@@ -586,7 +596,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
 
   /* --- カレンダー：予定は「17:00 たいら」の1行で、色の付いた札にする --- */
   .weekdays div { border-left: none; }
-  .day { min-height: 72px; padding: 1px 1px 2px; }
+  .grid { height: 450px; }
+  .day { padding: 1px 1px 2px; }
   .day-number { width: 22px; height: 22px; line-height: 22px; margin: 1px auto; }
   .chip { font-size: 0.62rem; line-height: 1.4; padding: 1px 2px; margin-bottom: 1px; border-radius: 3px; }
   .chip .text { text-overflow: clip; } /* 「…」を付けずに、入るだけ文字を出す */
