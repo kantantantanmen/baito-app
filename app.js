@@ -138,24 +138,14 @@ function formatEvent(event) {
   return `${day} ${time(start)}-${time(end)}`;
 }
 
-// 予定の時間「17:00-22:00」の部品。スマホでは終わりの時間（-22:00）を隠して「17:00」だけにする
-function chipTime(event, prefix = "") {
-  const hhmm = (d) => d.toTimeString().slice(0, 5);
-  const time = el("span", "text chip-time");
-  if (prefix) time.append(el("span", "t-prefix", prefix)); // 「仮 」。スマホでは点線の枠で分かるので隠す
-  time.append(hhmm(new Date(event.start.dateTime)), el("span", "t-end", `-${hhmm(new Date(event.end.dateTime))}`));
-  return time;
-}
-
 // 仮シフト1件分の表示（点線の枠）。押すと仮シフトの画面が開く
 function makeTentativeChip(item) {
   const { event, tentative, shift } = item;
   const past = isPastTentative(tentative);
   const chip = el("button", `chip timed tentative${past ? " past" : ""}`);
   chip.type = "button";
-  const body = el("span", "chip-body");
-  body.append(chipTime(event, "仮 "), el("span", "text", event.summary));
-  chip.append(body);
+  // カレンダーにはバイト先の名前だけ出す（時間はマウスを乗せたときと、下の一覧に出る）
+  chip.append(el("span", "text", event.summary));
   chip.title = `仮シフト ${formatEvent(event)}  ${event.summary}` +
     (past ? "（過ぎたので数えない）" : shift ? `  ${formatYen(shift.pay)}` : "");
   chip.onclick = (e) => {
@@ -177,30 +167,24 @@ function makeChip(item) {
   const { event, cal, shift } = item; // item.event などを短い名前で取り出す
   const title = event.summary || "（タイトルなし）";
 
+  // 予定の色は、どのカレンダーの予定も同じ青（仮シフトは点線の枠で見分ける）
   if (event.start.date) {
-    // 終日：色で塗りつぶす
+    // 終日
     const chip = el("div", "chip");
-    chip.style.background = cal.backgroundColor;
-    chip.style.color = cal.foregroundColor;
     chip.append(el("span", "text", title));
     chip.title = title;
     return chip;
   }
 
-  // 時間つき：色の点 + 「17:00-22:00」+ 予定名（2行）。押すと詳細画面が開く
+  // 時間つき：名前だけを出す（時間はマウスを乗せたときと、下の一覧に出る）。押すと詳細画面が開く
   const chip = el("button", "chip timed");
   chip.type = "button";
   if (shift) chip.classList.add("shift");
 
-  const dot = el("span", "dot");
-  dot.style.background = cal.backgroundColor;
-
-  const body = el("span", "chip-body");
   // バイトのシフトは、予定名ではなくバイト先の名前（と役職）を出す（勤怠設定で名前を変えるとここも変わる）
   // 予定名は、マウスを乗せたときと、予定を押した画面の見出しに出る
   const shownTitle = shift ? [shift.place, shift.role].filter(Boolean).join(" ") : title;
-  body.append(chipTime(event), el("span", "text", shownTitle));
-  chip.append(dot, body);
+  chip.append(el("span", "text", shownTitle));
   if (shift && shift.bonus) chip.append(el("span", "bonus-mark", "＋"));
 
   // マウスを乗せると全文（シフトなら給料も）が出る
@@ -289,6 +273,7 @@ function renderGrid(byDay) {
     if (key === selectedDay) cell.classList.add("selected");
     if (d.getDay() === 6) cell.classList.add("sat");
     if (d.getDay() === 0) cell.classList.add("sun");
+    if (isHoliday(key)) cell.classList.add("holiday");
     cell.onclick = () => selectDay(key); // 押すと、カレンダーの下にその日の予定の一覧を出す
     onLongPress(cell, () => openAddShift(key)); // 長押しでシフト追加
     cell.title = "押すとこの日の予定の一覧、長押しでシフトを追加";
@@ -349,10 +334,7 @@ function renderDayList() {
     let amount = "";
     if (tentative && isPastTentative(tentative)) amount = "過ぎた仮シフト";
     else if (shift) amount = formatYen(shift.pay);
-    const dot = el("span", "dot");
-    if (item.cal) dot.style.background = item.cal.backgroundColor;
     row.append(
-      dot,
       el("span", "tentative-when", tentative ? `仮 ${time}` : time),
       el("span", "tentative-what", name),
       el("span", "value", amount),

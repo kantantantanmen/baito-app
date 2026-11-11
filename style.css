@@ -321,12 +321,15 @@ main.calendar-view { overflow-x: hidden; }
 .day.today .day-number { background: var(--accent); color: #fff; }
 .day.sat .day-number { color: #1a73e8; }
 .day.sun .day-number { color: #d93025; }
+.day.holiday .day-number { color: #d93025; }
 .day.today .day-number { color: #fff; }
 .day.other-month .day-number { color: var(--muted); }
+/* 土日祝は背景を薄い水色にする（前後の月の日は灰色のまま） */
+.day.sat:not(.other-month), .day.sun:not(.other-month), .day.holiday:not(.other-month) { background: #eaf6fd; }
 /* 押して選んだ日 */
-.day.selected { background: #e6f2ed; box-shadow: inset 0 0 0 2px var(--accent); }
+.grid .day.selected { background: #e6f2ed; box-shadow: inset 0 0 0 2px var(--accent); }
 /* 長押ししている間（少し押し続けたら色が付く） */
-.day.pressing { background: #d6ebe2; transition: background 0.3s ease 0.15s; }
+.grid .day.pressing { background: #d6ebe2; transition: background 0.3s ease 0.15s; }
 
 /* カレンダーの下の、押した日の予定の一覧 */
 .day-list { padding: 12px 16px 24px; border-top: 1px solid var(--line); }
@@ -347,7 +350,7 @@ main.calendar-view { overflow-x: hidden; }
 }
 button.day-row { cursor: pointer; }
 button.day-row:hover { background: #f1f3f4; }
-.day-row.shift { background: #eef5f2; }
+.day-row.shift { background: #e8f0fe; }
 .day-row.tentative-item { border: 1px dashed #a9b6e0; background: #f7f8fd; color: #4a5fa8; }
 .day-row.past { opacity: 0.5; }
 .day-row .value { white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -378,14 +381,12 @@ button.day-row:hover { background: #f1f3f4; }
   text-align: left;
   cursor: pointer;
 }
-.chip.timed:hover { background: #f1f3f4; }
-.chip.timed .dot { margin-top: 4px; }
-.chip.shift { background: #eef5f2; }      /* バイトとして計算している予定 */
-.chip-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.chip-time { color: var(--muted); font-size: 0.68rem; }
-.bonus-mark { color: #b06000; font-weight: 700; }
+/* 予定の色は、どのカレンダーの予定も同じ青（仮シフトは下の点線の枠） */
+.chip, .chip.timed { background: #1a73e8; color: #fff; }
+.chip.timed:hover { background: #1765cc; }
+.bonus-mark { color: #ffe08a; font-weight: 700; }
 /* 仮シフト：点線の枠。過ぎたものは薄く */
-.chip.tentative { background: #f7f8fd; border: 1px dashed #a9b6e0; color: #4a5fa8; }
+.chip.tentative { padding: 0 4px; background: #f7f8fd; border: 1px dashed #a9b6e0; color: #4a5fa8; }
 .chip.tentative:hover { background: #eef1fb; }
 .chip.tentative.past { opacity: 0.45; }
 
@@ -601,13 +602,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
   .day-number { width: 22px; height: 22px; line-height: 22px; margin: 1px auto; }
   .chip { font-size: 0.62rem; line-height: 1.4; padding: 1px 2px; margin-bottom: 1px; border-radius: 3px; }
   .chip .text { text-overflow: clip; } /* 「…」を付けずに、入るだけ文字を出す */
-  .chip.timed { align-items: center; background: #eef0f3; }
-  .chip.shift { background: #dcefe7; color: #1d4d40; }
-  .chip.tentative { background: #f7f8fd; padding: 0 2px; }
-  .chip-body { flex-direction: row; gap: 2px; overflow: hidden; }
-  .chip-time { color: inherit; font-size: inherit; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-  .t-end, .t-prefix { display: none; }
-  .dot { display: none; }
+  .chip.timed { align-items: center; }
+  .chip.tentative { padding: 0 2px; }
 
   /* --- 仮シフトの一覧・押した日の予定の一覧 --- */
   .tentative, .day-list { padding: 12px 12px 20px; }

@@ -98,6 +98,59 @@ function el(tag, className, text) {
   return e;
 }
 
+// ===== 日本の祝日（今の法律のきまりで計算する。カレンダーの背景の色に使う） =====
+const holidayCache = {};
+
+// その年の祝日 → { "2026-01-01": true, ... }（振替休日・国民の休日も入る）
+function holidaysOf(year) {
+  if (holidayCache[year]) return holidayCache[year];
+  const days = new Set();
+  const add = (m, d) => days.add(dateKey(new Date(year, m - 1, d)));
+  // m月の n 回目の月曜日
+  const nthMonday = (m, n) => {
+    const first = new Date(year, m - 1, 1).getDay();
+    add(m, 1 + ((8 - first) % 7) + (n - 1) * 7);
+  };
+  const y = year - 1980;
+  add(1, 1);                                                          // 元日
+  nthMonday(1, 2);                                                    // 成人の日
+  add(2, 11);                                                         // 建国記念の日
+  add(2, 23);                                                         // 天皇誕生日
+  add(3, Math.floor(20.8431 + 0.242194 * y - Math.floor(y / 4)));    // 春分の日
+  add(4, 29);                                                         // 昭和の日
+  add(5, 3); add(5, 4); add(5, 5);                                    // 憲法記念日・みどりの日・こどもの日
+  nthMonday(7, 3);                                                    // 海の日
+  add(8, 11);                                                         // 山の日
+  nthMonday(9, 3);                                                    // 敬老の日
+  add(9, Math.floor(23.2488 + 0.242194 * y - Math.floor(y / 4)));    // 秋分の日
+  nthMonday(10, 2);                                                   // スポーツの日
+  add(11, 3);                                                         // 文化の日
+  add(11, 23);                                                        // 勤労感謝の日
+
+  const base = [...days].sort();
+  // 国民の休日：祝日と祝日にはさまれた平日（9月の敬老の日と秋分の日の間など）
+  for (const key of base) {
+    const d = parseDate(key);
+    d.setDate(d.getDate() + 2);
+    const mid = new Date(d);
+    mid.setDate(mid.getDate() - 1);
+    if (days.has(dateKey(d)) && !days.has(dateKey(mid)) && mid.getDay() !== 0) days.add(dateKey(mid));
+  }
+  // 振替休日：日曜日の祝日のあと、最初の祝日でない日
+  for (const key of base) {
+    const d = parseDate(key);
+    if (d.getDay() !== 0) continue;
+    do d.setDate(d.getDate() + 1); while (days.has(dateKey(d)));
+    days.add(dateKey(d));
+  }
+  return (holidayCache[year] = days);
+}
+
+// "2026-11-03" が祝日か
+function isHoliday(key) {
+  return holidaysOf(Number(key.slice(0, 4))).has(key);
+}
+
 // ===== 「？」を押すと出る説明 =====
 // 開いている説明を覚えておく（画面が作り直されても閉じないように）。key は説明ごとの名前
 const openedHelps = new Set();
