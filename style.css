@@ -598,7 +598,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
   .summary-toggle {
     display: flex; align-items: center; justify-content: center;
     width: 36px; height: 36px; padding: 0; flex-shrink: 0;
-    border: none; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 50%; color: var(--accent); /* 「＋」と同じ緑の〇 */
   }
   .view-settings .summary-toggle { visibility: hidden; } /* 勤怠設定では収入を出さない */
   .summary {
