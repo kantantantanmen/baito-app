@@ -471,6 +471,12 @@ async function onLogin() {
   }
 }
 
+// ===== いつも最新のファイルで開くためのしくみ（sw.js）を登録する =====
+// インターネット上（https）で開いたときだけ。パソコンの 127.0.0.1 などでは使わない
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
 // ===== 起動時 =====
 document.getElementById("login").onclick = login;
 document.getElementById("login-menu").onclick = () => {
