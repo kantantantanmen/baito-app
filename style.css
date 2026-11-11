@@ -271,7 +271,19 @@ main { display: flex; flex-direction: column; min-width: 0; }
 .weekdays .sun { color: #d93025; }
 .weekdays .sat { color: #1a73e8; }
 
-.grid { flex: 1; }
+.grid {
+  flex: 1;
+  touch-action: pan-y;          /* 横に指を滑らせたときは、画面を動かさずに月を替える */
+  -webkit-user-select: none;    /* 長押しで文字が選ばれないように */
+  user-select: none;
+  -webkit-touch-callout: none;  /* iPhone の長押しのメニューを出さない */
+}
+/* 指で滑らせて月を替えたときの動き */
+.grid.slide-left { animation: slide-left 0.22s ease-out; }
+.grid.slide-right { animation: slide-right 0.22s ease-out; }
+@keyframes slide-left { from { transform: translateX(30%); opacity: 0.3; } to { transform: none; opacity: 1; } }
+@keyframes slide-right { from { transform: translateX(-30%); opacity: 0.3; } to { transform: none; opacity: 1; } }
+main.calendar-view { overflow-x: hidden; }
 
 .day {
   min-width: 0;
@@ -296,6 +308,39 @@ main { display: flex; flex-direction: column; min-width: 0; }
   border-radius: 50%;
 }
 .day.today .day-number { background: var(--accent); color: #fff; }
+.day.sat .day-number { color: #1a73e8; }
+.day.sun .day-number { color: #d93025; }
+.day.today .day-number { color: #fff; }
+.day.other-month .day-number { color: var(--muted); }
+/* 押して選んだ日 */
+.day.selected { background: #e6f2ed; box-shadow: inset 0 0 0 2px var(--accent); }
+/* 長押ししている間（少し押し続けたら色が付く） */
+.day.pressing { background: #d6ebe2; transition: background 0.3s ease 0.15s; }
+
+/* カレンダーの下の、押した日の予定の一覧 */
+.day-list { padding: 12px 16px 24px; border-top: 1px solid var(--line); }
+.day-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 4px;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+}
+button.day-row { cursor: pointer; }
+button.day-row:hover { background: #f1f3f4; }
+.day-row.shift { background: #eef5f2; }
+.day-row.tentative-item { border: 1px dashed #a9b6e0; background: #f7f8fd; color: #4a5fa8; }
+.day-row.past { opacity: 0.5; }
+.day-row .value { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.time-range { display: inline-flex; align-items: center; gap: 4px; }
 
 /* 予定1件分 */
 .chip {
@@ -552,9 +597,13 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
   .t-end, .t-prefix { display: none; }
   .dot { display: none; }
 
-  /* --- 仮シフトの一覧 --- */
-  .tentative { padding: 12px 12px 20px; }
+  /* --- 仮シフトの一覧・押した日の予定の一覧 --- */
+  .tentative, .day-list { padding: 12px 12px 20px; }
+  .day-row .value { font-size: 0.8rem; }
 }
+
+/* マイカレンダーが出ている（ログインしている）ときは「Google でログイン」を出さない */
+.logged-in #login, .logged-in .login-menu { display: none; }
 
 /* 仮シフトの画面：Google カレンダーに入れられないときの案内 */
 .google-hint p { margin: 8px 0 4px; }

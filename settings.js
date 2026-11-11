@@ -36,7 +36,8 @@ const PAY_DAY_CHOICES = [[0, "末日"]];
 for (let d = 1; d <= 31; d++) PAY_DAY_CHOICES.push([d, `${d}日`]);
 const PAY_MONTH_CHOICES = [[0, "当月"], [1, "翌月"], [2, "翌々月"]];
 const PAY_CYCLE_CHOICES = [["month", "月払い"], ["week", "週払い"], ["sameday", "当日払い"]];
-const WEEKDAY_CHOICES = ["日", "月", "火", "水", "木", "金", "土"].map((d, i) => [i, `${d}曜`]);
+// 週の始まりは月曜日。値は Date の getDay() と同じ（日曜 = 0）
+const WEEKDAY_CHOICES = [1, 2, 3, 4, 5, 6, 0].map(i => [i, `${"日月火水木金土"[i]}曜`]);
 const PAY_WEEK_CHOICES = [[0, "当週"], [1, "翌週"], [2, "翌々週"]];
 const AUTO_TIMING_CHOICES = [["pay", "勤務が入らなくなったらすぐ"], ["monthEnd", "その月が終わったら"]];
 

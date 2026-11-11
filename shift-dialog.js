@@ -23,30 +23,69 @@ function editKey(item) {
   return `${item.cal.id}|${item.event.id}`;
 }
 
-// 詳細画面を開く。設定が変わったら onChange、予定を削除したら onDeleted を呼ぶ
-function openShiftDialog(item, onChange, onDeleted = () => {}) {
+// 日付 "2026-11-10" と時刻 "17:00"〜"22:00" → 予定の start / end（終わりが始まり以前なら次の日に終わる）
+function eventTimes(day, startTime, endTime) {
+  let endDay = day;
+  if (endTime <= startTime) {
+    const d = parseDate(day);
+    d.setDate(d.getDate() + 1);
+    endDay = dateKey(d);
+  }
+  return {
+    start: { dateTime: new Date(`${day}T${startTime}:00`).toISOString() },
+    end: { dateTime: new Date(`${endDay}T${endTime}:00`).toISOString() },
+  };
+}
+
+// 詳細画面を開く。設定が変わったら onChange、予定を削除したり日時を変えたりしたら onReload を呼ぶ
+function openShiftDialog(item, onChange, onReload = () => {}) {
   const key = editKey(item);
   const edit = loadEdits()[key] || {};
   const workplaces = loadWorkplaces();
-  const ev = item.event;
-  const start = new Date(ev.start.dateTime);
-  const end = new Date(ev.end.dateTime);
+  const original = item.event;
+  const start = new Date(original.start.dateTime);
+  const end = new Date(original.end.dateTime);
   const hhmm = (d) => d.toTimeString().slice(0, 5);
+  // 自分のカレンダーの予定なら、日時を変えたり消したりできる
+  const canWrite = item.cal.accessRole === "owner" || item.cal.accessRole === "writer";
 
   shiftDialog.textContent = "";
   const form = el("form", "dialog-body");
   form.method = "dialog"; // このフォームのボタンを押すと画面が閉じる
 
-  // --- 見出し：予定名と日時 ---
-  form.append(
-    el("h2", "dialog-title", ev.summary || "（タイトルなし）"),
-    el("p", "dialog-date",
-      `${start.getMonth() + 1}月${start.getDate()}日（${WEEKDAYS[start.getDay()]}） ${hhmm(start)}〜${hhmm(end)}`),
-  );
+  // --- 見出し：予定名 ---
+  form.append(el("h2", "dialog-title", original.summary || "（タイトルなし）"));
+
+  // --- 日付と時間（変えたら「更新」で Google カレンダーの予定も直す） ---
+  const dayInput = el("input");
+  dayInput.type = "date";
+  dayInput.value = dateKey(start);
+  const startInput = el("input");
+  startInput.type = "time";
+  startInput.value = hhmm(start);
+  const endInput = el("input");
+  endInput.type = "time";
+  endInput.value = hhmm(end);
+  if (canWrite) {
+    const times = el("span", "time-range");
+    times.append(startInput, "〜", endInput);
+    form.append(field("日付", dayInput), field("時間", times));
+  } else {
+    form.append(el("p", "dialog-date",
+      `${start.getMonth() + 1}月${start.getDate()}日（${WEEKDAYS[start.getDay()]}） ${hhmm(start)}〜${hhmm(end)}`));
+  }
+  // 日時が元の予定から変わったか
+  const timeChanged = () => canWrite &&
+    (dayInput.value !== dateKey(start) || startInput.value !== hhmm(start) || endInput.value !== hhmm(end));
+  // 入力中の日時にした予定（計算に使う）。入力が空なら元の予定のまま
+  const currentEvent = () => {
+    if (!timeChanged() || !dayInput.value || !startInput.value || !endInput.value) return original;
+    return { ...original, ...eventTimes(dayInput.value, startInput.value, endInput.value) };
+  };
 
   // --- バイト先 ---
   const place = el("select");
-  const auto = matchWorkplace(ev, workplaces);
+  const auto = matchWorkplace(original, workplaces);
   place.append(option("", `自動（${auto ? auto.name : "当てはまるバイト先なし"}）`));
   for (const w of workplaces) {
     if (w.name) place.append(option(w.name, w.name));
@@ -61,12 +100,12 @@ function openShiftDialog(item, onChange, onDeleted = () => {}) {
     role.textContent = "";
     const wp = place.value && place.value !== "none"
       ? workplaces.find(w => w.name === place.value)
-      : matchWorkplace(ev, workplaces);
+      : matchWorkplace(original, workplaces);
     const roles = wp ? (wp.roles || []).filter(r => r.name) : [];
     roleField.hidden = roles.length === 0; // 役職を登録していないバイト先なら欄を隠す
     if (roles.length === 0) return;
 
-    const autoRole = findRole(ev, wp, "");
+    const autoRole = findRole(original, wp, "");
     role.append(option("", `自動（${autoRole ? autoRole.name : "役職なし"}）`));
     for (const r of roles) role.append(option(r.name, r.name));
     role.append(option("-", "役職なし"));
@@ -99,21 +138,40 @@ function openShiftDialog(item, onChange, onDeleted = () => {}) {
   const close = el("button", "", "やめる"); // 押すと、入力を保存せずに閉じる
   const save = el("button", "primary", "更新");
   save.type = "button";
-  save.onclick = () => {
+  const deleteError = el("p", "warn");
+  save.onclick = async () => {
+    const changed = timeChanged();
+    if (changed) {
+      if (!dayInput.value || !startInput.value || !endInput.value) {
+        deleteError.textContent = "日付と時間を入れてください。";
+        return;
+      }
+      // 日時が変わったら、Google カレンダーの予定を直す
+      save.disabled = true;
+      save.textContent = "更新中...";
+      deleteError.textContent = "";
+      try {
+        await updateEvent(item.cal.id, original.id, eventTimes(dayInput.value, startInput.value, endInput.value));
+      } catch (err) {
+        deleteError.textContent = err.message;
+        save.disabled = false;
+        save.textContent = "更新";
+        return;
+      }
+    }
     const e = currentEdit();
     const all = loadEdits();
     if (Object.keys(e).length > 0) all[key] = e;
     else delete all[key]; // 何も入力がなければ保存しておく必要がない
     saveEdits(all);
     shiftDialog.close();
-    onChange();
+    if (changed) onReload(); // 予定を取り直す
+    else onChange();
   };
   const buttons = el("div", "dialog-buttons");
 
   // 予定そのものを Google カレンダーから消す（書き込めるカレンダーの予定だけ）
-  const canDelete = item.cal.accessRole === "owner" || item.cal.accessRole === "writer";
-  const deleteError = el("p", "warn");
-  if (canDelete) {
+  if (canWrite) {
     const del = el("button", "danger", "シフトを削除");
     del.type = "button";
     del.onclick = async () => {
@@ -121,12 +179,12 @@ function openShiftDialog(item, onChange, onDeleted = () => {}) {
       del.textContent = "削除中...";
       deleteError.textContent = "";
       try {
-        await deleteEvent(item.cal.id, ev.id);
+        await deleteEvent(item.cal.id, original.id);
         const all = loadEdits();
         delete all[key]; // この予定用の入力も要らなくなる
         saveEdits(all);
         shiftDialog.close();
-        onDeleted();
+        onReload();
       } catch (err) {
         deleteError.textContent = err.message;
         del.disabled = false;
@@ -144,14 +202,16 @@ function openShiftDialog(item, onChange, onDeleted = () => {}) {
   close.type = "button";
   close.onclick = () => shiftDialog.close();
   form.append(
-    el("p", "muted small", "※ 時間を変えたいときは Google カレンダーで予定を直してください。"),
+    el("p", "muted small", canWrite
+      ? "※ 日付や時間を変えて「更新」を押すと、Google カレンダーの予定も変わります。"
+      : "※ このカレンダーは書き込めないので、日付と時間は Google カレンダーで直してください。"),
     deleteError,
     buttons,
   );
 
   // 計算結果の表示を作り直す
   const renderPreview = (e) => {
-    const shift = eventToShift(ev, workplaces, e);
+    const shift = eventToShift(currentEvent(), workplaces, e);
     preview.textContent = "";
 
     if (!shift) {
@@ -196,7 +256,7 @@ function openShiftDialog(item, onChange, onDeleted = () => {}) {
     update();
   };
   role.onchange = update;
-  for (const input of [breakInput, bonus, bonusNote]) input.oninput = update;
+  for (const input of [breakInput, bonus, bonusNote, dayInput, startInput, endInput]) input.oninput = update;
 
   renderPreview(edit);
   shiftDialog.append(form);

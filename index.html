@@ -64,11 +64,14 @@
     <main class="calendar-view">
       <div id="message"></div>
       <div class="weekdays">
-        <div class="sun">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="sat">土</div>
+        <div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="sat">土</div><div class="sun">日</div>
       </div>
+      <!-- 日付を押すと選ぶ（下に予定の一覧）、長押しでシフト追加、左右に指を滑らせると月が替わる -->
       <div id="calendar-grid" class="grid"></div>
       <!-- カレンダーの下：仮シフトの一覧（中身は tentative.js が作る） -->
       <section id="tentative" class="tentative"></section>
+      <!-- その下：押した日の予定の一覧（中身は app.js が作る） -->
+      <section id="day-list" class="day-list"></section>
     </main>
 
     <!-- 「集計」の画面：月平均の表と年合計 -->

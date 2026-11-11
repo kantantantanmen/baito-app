@@ -58,9 +58,13 @@ function loadToken() {
   return null;
 }
 
+// 通行証が使えなくなったときに呼ぶ関数（app.js が入れる。ログインのボタンをまた出すため）
+let onTokenLost = () => {};
+
 function clearToken() {
   accessToken = null;
   localStorage.removeItem(TOKEN_KEY);
+  onTokenLost();
 }
 
 // 次回のログインを簡単にするため、ログインしたアカウントを覚えておく
@@ -122,6 +126,13 @@ function googleGet(url) {
 function createEvent(calendarId, event) {
   const id = encodeURIComponent(calendarId);
   return googleRequest(`https://www.googleapis.com/calendar/v3/calendars/${id}/events`, event);
+}
+
+// カレンダーの予定の一部（日時など）を書き換える。changes の例: { start: {...}, end: {...} }
+function updateEvent(calendarId, eventId, changes) {
+  const cal = encodeURIComponent(calendarId);
+  const ev = encodeURIComponent(eventId);
+  return googleRequest(`https://www.googleapis.com/calendar/v3/calendars/${cal}/events/${ev}`, changes, "PATCH");
 }
 
 // カレンダーの予定を消す（繰り返し予定なら、その日の1回分だけ消える）

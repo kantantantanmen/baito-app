@@ -9,6 +9,7 @@ const confirmView = document.getElementById("confirm");
 const planView = document.getElementById("plan");
 const statsView = document.getElementById("stats");
 const tentativeView = document.getElementById("tentative");
+const dayListView = document.getElementById("day-list");
 
 const SELECTED_KEY = "baito-calendars"; // 選んだカレンダーの保存名
 
@@ -18,6 +19,8 @@ let loadedStart = null;  // items を取ってきた期間の始まり（読み�
 let isLoggedIn = false;
 let loadCount = 0;       // 古い読み込み結果で上書きしないための番号
 let currentView = "calendar"; // 今の画面："calendar"、"stats"、"plan"、"confirm"、"settings"
+let selectedDay = dateKey(new Date()); // 押して選んだ日（カレンダーの下に予定の一覧を出す）。最初は今日
+let lastByDay = {};      // 最後に描いた、日付ごとの予定（選んだ日の一覧に使う）
 
 // 表示している月（その月の1日）
 const now = new Date();
@@ -25,13 +28,14 @@ let viewMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
 // ===== 範囲の計算 =====
 
-// カレンダーに表示する範囲：左上の日曜日〜右下の土曜日の次の日
+// カレンダーに表示する範囲：左上の月曜日〜右下の日曜日の次の日（週の始まりは月曜日）
 function gridRange() {
+  const offset = (viewMonth.getDay() + 6) % 7; // 1日が月曜日から何日目か（月曜 = 0、日曜 = 6）
   const start = new Date(viewMonth);
-  start.setDate(1 - viewMonth.getDay()); // 1日がある週の日曜日まで戻る
+  start.setDate(1 - offset); // 1日がある週の月曜日まで戻る
 
   const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate();
-  const weeks = Math.ceil((viewMonth.getDay() + daysInMonth) / 7); // 何週分の行が要るか
+  const weeks = Math.ceil((offset + daysInMonth) / 7); // 何週分の行が要るか
 
   const end = new Date(start);
   end.setDate(start.getDate() + weeks * 7);
@@ -155,10 +159,16 @@ function makeTentativeChip(item) {
   chip.title = `仮シフト ${formatEvent(event)}  ${event.summary}` +
     (past ? "（過ぎたので数えない）" : shift ? `  ${formatYen(shift.pay)}` : "");
   chip.onclick = (e) => {
+    if (isNarrow()) return; // スマホでは日付のマスを押したのと同じ（下の一覧から開く）
     e.stopPropagation();
     openTentative(tentative);
   };
   return chip;
+}
+
+// スマホの幅か（予定の文字が小さいので、予定を押しても日付を選ぶだけにする）
+function isNarrow() {
+  return window.matchMedia("(max-width: 700px)").matches;
 }
 
 // 予定1件分の表示を作る
@@ -196,11 +206,69 @@ function makeChip(item) {
   // マウスを乗せると全文（シフトなら給料も）が出る
   chip.title = `${formatEvent(event)}  ${title}` + (shift ? `  ${formatYen(shift.pay)}` : "");
   chip.onclick = (e) => {
-    e.stopPropagation(); // 下にある日付のマスの「シフト追加」まで反応しないようにする
-    openShiftDialog(item, renderAll, loadMonth); // 予定を削除したら予定を取り直す
+    if (isNarrow()) return; // スマホでは日付のマスを押したのと同じ（下の一覧から開く）
+    e.stopPropagation(); // 下にある日付のマスまで反応しないようにする
+    openShiftDialog(item, renderAll, loadMonth); // 予定を削除・日時を変えたら予定を取り直す
   };
   return chip;
 }
+
+// ===== 長押しと、指を滑らせる操作 =====
+// 長押しや指を滑らせたあと、指を離したときの「押した」は無視する（追加の画面がすぐ閉じたりしないように）
+let swallowClick = false;
+document.addEventListener("pointerdown", () => { swallowClick = false; }, true);
+document.addEventListener("click", (e) => {
+  if (!swallowClick) return;
+  swallowClick = false;
+  e.stopPropagation();
+  e.preventDefault();
+}, true);
+
+// 日付のマスを長押ししたら onLongPress（0.5秒）
+const LONG_PRESS_MS = 500;
+function onLongPress(cell, onLongPress) {
+  let timer = null;
+  let startX = 0;
+  let startY = 0;
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = null;
+    cell.classList.remove("pressing");
+  };
+  cell.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    startX = e.clientX;
+    startY = e.clientY;
+    cell.classList.add("pressing");
+    timer = setTimeout(() => {
+      cancel();
+      swallowClick = true;
+      if (navigator.vibrate) navigator.vibrate(15);
+      onLongPress();
+    }, LONG_PRESS_MS);
+  });
+  cell.addEventListener("pointermove", (e) => {
+    if (timer && Math.hypot(e.clientX - startX, e.clientY - startY) > 10) cancel(); // 指が動いたら長押しではない
+  });
+  for (const type of ["pointerup", "pointercancel", "pointerleave"]) cell.addEventListener(type, cancel);
+  cell.addEventListener("contextmenu", (e) => e.preventDefault()); // スマホの長押しのメニューを出さない
+}
+
+// カレンダーを左右に指で滑らせたら月を替える（左へ滑らせると次の月）
+let swipeStart = null;
+grid.addEventListener("pointerdown", (e) => {
+  swipeStart = e.pointerType === "mouse" ? null : { x: e.clientX, y: e.clientY };
+});
+grid.addEventListener("pointerup", (e) => {
+  if (!swipeStart) return;
+  const dx = e.clientX - swipeStart.x;
+  const dy = e.clientY - swipeStart.y;
+  swipeStart = null;
+  if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return; // 短い・縦向きなら月は替えない
+  swallowClick = true;
+  moveMonth(dx < 0 ? 1 : -1, dx < 0 ? "slide-left" : "slide-right");
+});
+grid.addEventListener("pointercancel", () => { swipeStart = null; });
 
 // マス目を作る。byDay：日付ごとの予定
 function renderGrid(byDay) {
@@ -217,8 +285,12 @@ function renderGrid(byDay) {
     const cell = el("div", "day");
     if (d.getMonth() !== viewMonth.getMonth()) cell.classList.add("other-month");
     if (key === todayKey) cell.classList.add("today");
-    cell.onclick = () => openAddShift(key); // マスの空いているところを押すとシフト追加
-    cell.title = "押すと Google カレンダーにシフトを追加";
+    if (key === selectedDay) cell.classList.add("selected");
+    if (d.getDay() === 6) cell.classList.add("sat");
+    if (d.getDay() === 0) cell.classList.add("sun");
+    cell.onclick = () => selectDay(key); // 押すと、カレンダーの下にその日の予定の一覧を出す
+    onLongPress(cell, () => openAddShift(key)); // 長押しでシフト追加
+    cell.title = "押すとこの日の予定の一覧、長押しでシフトを追加";
 
     cell.appendChild(el("div", "day-number", String(d.getDate())));
 
@@ -228,6 +300,67 @@ function renderGrid(byDay) {
 
     grid.appendChild(cell);
     d.setDate(d.getDate() + 1);
+  }
+}
+
+// 日付のマスを押したとき：その日を選んで、カレンダーの下に予定の一覧を出す
+function selectDay(key) {
+  selectedDay = key;
+  for (const cell of grid.querySelectorAll(".day.selected")) cell.classList.remove("selected");
+  const cells = grid.querySelectorAll(".day");
+  const { start } = gridRange();
+  const index = Math.round((parseDate(key) - start) / 86400000); // 左上から何日目か
+  if (cells[index]) cells[index].classList.add("selected");
+  renderDayList();
+  // 一覧が画面の外にあるときは、見えるところまで動かす
+  dayListView.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// 選んだ日の予定の一覧。シフト・仮シフトを押すと直す画面が開く
+function renderDayList() {
+  dayListView.textContent = "";
+  if (!selectedDay) {
+    dayListView.append(el("p", "muted small", "日付を押すと、その日の予定がここに出ます。長押しするとシフトを追加できます。"));
+    return;
+  }
+  const date = parseDate(selectedDay);
+  const head = el("div", "tentative-head");
+  const addButton = el("button", "", "＋ シフト");
+  addButton.onclick = () => openAddShift(selectedDay);
+  head.append(el("h3", "", `${date.getMonth() + 1}月${date.getDate()}日（${WEEKDAYS[date.getDay()]}）の予定`), addButton);
+  dayListView.append(head);
+
+  const list = lastByDay[selectedDay] || [];
+  if (list.length === 0) {
+    dayListView.append(el("p", "muted small", "予定はありません。日付を長押しするか「＋ シフト」で追加できます。"));
+    return;
+  }
+  const hhmm = (d) => d.toTimeString().slice(0, 5);
+  for (const item of list) {
+    const { event, shift, tentative } = item;
+    const allDay = !!event.start.date;
+    const row = el(allDay ? "div" : "button",
+      `day-row${tentative ? " tentative-item" : shift ? " shift" : ""}${tentative && isPastTentative(tentative) ? " past" : ""}`);
+    const time = allDay ? "終日" : `${hhmm(new Date(event.start.dateTime))}〜${hhmm(new Date(event.end.dateTime))}`;
+    const name = shift
+      ? [shift.place, shift.role].filter(Boolean).join(" ")
+      : event.summary || "（タイトルなし）";
+    let amount = "";
+    if (tentative && isPastTentative(tentative)) amount = "過ぎた仮シフト";
+    else if (shift) amount = formatYen(shift.pay);
+    const dot = el("span", "dot");
+    if (item.cal) dot.style.background = item.cal.backgroundColor;
+    row.append(
+      dot,
+      el("span", "tentative-when", tentative ? `仮 ${time}` : time),
+      el("span", "tentative-what", name),
+      el("span", "value", amount),
+    );
+    if (!allDay) {
+      row.type = "button";
+      row.onclick = () => (tentative ? openTentative(tentative) : openShiftDialog(item, renderAll, loadMonth));
+    }
+    dayListView.append(row);
   }
 }
 
@@ -326,7 +459,9 @@ function renderAll() {
     shifts, viewMonth, unmatched, workplaces, onChange: renderAll,
   };
 
-  renderGrid(groupByDay([...items, ...tentativeItems]));
+  lastByDay = groupByDay([...items, ...tentativeItems]);
+  renderGrid(lastByDay);
+  renderDayList();
   renderTentatives(tentativeView, viewMonth, workplaces, openTentative, () => {
     // 今月か過ぎた月を見ているときは今日、先の月ならその月の1日（仮シフトは過去の日付に作れないため）
     const today = new Date();
@@ -441,10 +576,20 @@ async function loadMonth() {
 }
 
 // ===== 月の移動 =====
-function moveMonth(diff) {
+// slide：指で滑らせたときの動き（"slide-left" か "slide-right"）
+function moveMonth(diff, slide = "") {
   viewMonth = addMonths(viewMonth, diff);
+  // 選んだ日が表示する月になければ選び直す（今月なら今日、ほかの月は選ばない）
+  if (!selectedDay || selectedDay.slice(0, 7) !== monthKey(viewMonth)) {
+    selectedDay = monthKey(viewMonth) === monthKey(new Date()) ? dateKey(new Date()) : null;
+  }
   renderAll();  // 手元の予定で先に描いてから
   loadMonth();  // 新しい範囲の予定を取り直す
+  if (slide) {
+    grid.classList.remove("slide-left", "slide-right");
+    void grid.offsetWidth; // 動きを最初からやり直すため
+    grid.classList.add(slide);
+  }
 }
 
 document.getElementById("prev").onclick = () => moveMonth(-1);
@@ -465,11 +610,20 @@ async function onLogin() {
     if (main) rememberAccount(main.id);
 
     renderCalendarChoices();
+    document.body.classList.add("logged-in"); // マイカレンダーが出たら「Google でログイン」を隠す
     loadMonth();
   } catch (err) {
     message.textContent = err.message;
   }
 }
+
+// ログインの有効期限が切れたとき：マイカレンダーを消して、「Google でログイン」をまた出す
+onTokenLost = () => {
+  isLoggedIn = false;
+  calendars = [];
+  calendarSelect.textContent = "ログインすると表示されます。";
+  document.body.classList.remove("logged-in");
+};
 
 // ===== いつも最新のファイルで開くためのしくみ（sw.js）を登録する =====
 // インターネット上（https）で開いたときだけ。パソコンの 127.0.0.1 などでは使わない
