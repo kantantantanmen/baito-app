@@ -147,6 +147,16 @@ tr.ow-bottom td { border-bottom: 2px solid #d93025; }
 .plan-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .plan-table td.over { color: #d93025; font-weight: 600; }
 .plan-table input { width: 110px; font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; }
+.plan-table .month-cell { white-space: nowrap; }
+.year-label { font-size: 0.7rem; color: var(--muted); line-height: 1.2; }
+/* スマホでは表を横にスクロールしなくて済むよう、すき間と入力欄を小さくする */
+@media (max-width: 700px) {
+  .data-table, .plan-table { font-size: 0.8rem; }
+  .data-table th, .data-table td, .plan-table th, .plan-table td { padding: 6px 4px; }
+  .data-table th { white-space: normal; }
+  .plan-table input { width: 76px; padding: 4px 6px; }
+  .plan-table select { padding: 3px 2px; }
+}
 .plan-table tr.past td { color: var(--muted); background: #fafafa; }
 .plan-table tr.past input { color: var(--muted); }
 

@@ -98,6 +98,11 @@ function el(tag, className, text) {
   return e;
 }
 
+// 平均する3か月を「10〜12月」のように短く書く（年をまたぐときは「11〜1月」）
+function monthRangeText(first, last) {
+  return `${first.getMonth() + 1}〜${last.getMonth() + 1}月`;
+}
+
 // ===== 日本の祝日（今の法律のきまりで計算する。カレンダーの背景の色に使う） =====
 const holidayCache = {};
 

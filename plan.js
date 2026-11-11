@@ -112,16 +112,17 @@ function buildPlan(container, ctx, onChange) {
   const weights = loadWeights();
   const table = el("table", "plan-table");
   const head = el("tr");
-  for (const text of ["月", "稼ぎたさ", "収入の予定", "3か月平均（先々月〜その月）"]) head.append(el("th", "", text));
+  for (const text of ["月", "稼ぎたさ", "収入の予定", "3か月平均"]) head.append(el("th", "", text));
   table.append(head);
 
   container.planRows = [];
   months.forEach((month, i) => {
     const key = monthKey(month);
 
-    // 1月と最初の行には年も書く
-    const label = i === 0 || month.getMonth() === 0 ? `${month.getFullYear()}年${monthName(month)}` : monthName(month);
-    const monthCell = el("td", "", label);
+    // 1月と最初の行には、月の上に小さく年も書く（横に並べると幅を取るので）
+    const monthCell = el("td", "month-cell");
+    if (i === 0 || month.getMonth() === 0) monthCell.append(el("div", "year-label", `${month.getFullYear()}年`));
+    monthCell.append(monthName(month));
 
     // 稼ぎたさ（決まっている月は「―」）
     const weight = selectInput(WEIGHT_CHOICES, weightOf(weights, key));
@@ -266,7 +267,7 @@ function refreshPlan(container, ctx) {
     r.avgCell.textContent = "";
     r.avgCell.append(
       el("div", "", formatYen(avg3)),
-      el("div", "avg-range", `${monthName(m2)}・${monthName(m1)}・${monthName(r.month)}の平均`),
+      el("div", "avg-range", `${monthRangeText(m2, r.month)}の平均`),
     );
     r.avgCell.title =
       `（${monthName(m2)} ${formatYen(valueOf(m2))} ＋ ${monthName(m1)} ${formatYen(valueOf(m1))} ＋ ` +

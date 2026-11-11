@@ -106,7 +106,7 @@ function renderStats(container, ctx) {
     const box = el("span");
     box.append(
       el("div", "", formatYen(avg)),
-      el("div", "avg-range", `${months.map(monthName).join("・")}の平均`),
+      el("div", "avg-range", `${monthRangeText(months[0], months[months.length - 1])}の平均`),
     );
     return [box, avg > limit ? "num over" : "num"];
   };
@@ -150,7 +150,7 @@ function renderStats(container, ctx) {
 
   const yearTable = el("table", "data-table");
   yearTable.append(tableRow(
-    [["月"], ["確定のみ", "num"], ["カレンダー優先（＋仮シフト）", "num"], ["予定設定優先", "num"]], "th"));
+    [["月"], ["確定のみ", "num"], ["カレンダー優先", "num"], ["予定設定優先", "num"]], "th"));
 
   const sums = { confirmed: 0, calendar: 0, plan: 0 };
   for (let m = 0; m < 12; m++) {

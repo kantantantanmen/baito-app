@@ -297,6 +297,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       return "";
     }
     if (!date.value) return "日付を入れてください。";
+    // 仮シフト：同じ日・同じバイト先で時間が重なるシフトがもうカレンダーにあれば保存しない
+    //（保存しても、シフトになった仮シフトとして自動で消えてしまうため）
+    if (tentativeAllowed && tentativesInCalendar([draft()], items.filter(x => x.shift), loadWorkplaces()).length > 0) {
+      return "この時間にはもうシフトが入っています。";
+    }
     if (tentativeAllowed && date.value < today) {
       return canAddToGoogle
         ? "過ぎた日付は仮シフトにできません。Google カレンダーには追加できます。"
