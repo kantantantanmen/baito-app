@@ -352,7 +352,7 @@ button.day-row { cursor: pointer; }
 button.day-row:hover { background: #f1f3f4; }
 .day-row.shift { background: #e8f0fe; }
 .day-row.tentative-item { border: 1px dashed #a9b6e0; background: #f7f8fd; color: #4a5fa8; }
-.day-row.past { opacity: 0.5; }
+.day-row.past { background: #fdecec; border-color: #e6a3a3; color: #b3261e; } /* 日付が過ぎた仮シフト：薄い赤 */
 .day-row .value { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .time-range { display: inline-flex; align-items: center; gap: 4px; }
 
@@ -382,13 +382,13 @@ button.day-row:hover { background: #f1f3f4; }
   cursor: pointer;
 }
 /* 予定の色は、どのカレンダーの予定も同じ青（仮シフトは下の点線の枠） */
-.chip, .chip.timed { background: #1a73e8; color: #fff; }
-.chip.timed:hover { background: #1765cc; }
-.bonus-mark { color: #ffe08a; font-weight: 700; }
+.chip, .chip.timed { background: #c6dafc; color: #0b3d91; } /* 仮シフト（ほぼ白）より濃い、薄めの青 */
+.chip.timed:hover { background: #b3cdfa; }
+.bonus-mark { color: #b06000; font-weight: 700; }
 /* 仮シフト：点線の枠。過ぎたものは薄く */
 .chip.tentative { padding: 0 4px; background: #f7f8fd; border: 1px dashed #a9b6e0; color: #4a5fa8; }
 .chip.tentative:hover { background: #eef1fb; }
-.chip.tentative.past { opacity: 0.45; }
+.chip.tentative.past, .chip.tentative.past:hover { background: #fdecec; border-color: #e6a3a3; color: #b3261e; } /* 日付が過ぎた仮シフト：薄い赤 */
 
 /* カレンダーの下の仮シフトの一覧 */
 .tentative { padding: 12px 16px 24px; border-top: 1px solid var(--line); }
@@ -410,7 +410,7 @@ button.day-row:hover { background: #f1f3f4; }
   background: #f7f8fd;
 }
 .tentative-row:hover { background: #eef1fb; }
-.tentative-row.past { opacity: 0.5; }
+.tentative-row.past, .tentative-row.past:hover { background: #fdecec; border-color: #e6a3a3; color: #b3261e; }
 .tentative-when { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tentative-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tentative-row .value { white-space: nowrap; font-variant-numeric: tabular-nums; }

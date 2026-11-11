@@ -1,7 +1,8 @@
 // ===== 仮シフト（Google カレンダーに入れる前の、入るつもりのシフト） =====
 // このブラウザだけに保存する。計算では、カレンダーのシフトと同じように給料を出して足す
-//   ・日付が過ぎた仮シフトは数えない（本当に働いたならカレンダーに入っているはずなので）
-//   ・「Google カレンダーに追加」を押すと、カレンダーに予定を作って仮シフトは消える（二重に数えないため）
+//   ・日付が過ぎた仮シフトも、働いたとして数える（カレンダーに入れ忘れて扶養を超えないように、多めに見る）
+//     過ぎたものはカレンダーと一覧で薄い赤にして、「シフトとして追加」か「削除」をしてもらう
+//   ・「シフトとして追加」を押すと、カレンダーに予定を作って仮シフトは消える（二重に数えないため）
 // 形は2種類（どちらも休憩・ボーナスは、空なら勤怠設定どおり／なし）
 //   日付あり　：{ id, date: "2026-12-05", place, role, start: "17:00", end: "22:00", breakMin?, bonus?, bonusNote? }
 //   日付が未定：{ id, kind: "count", month: "2026-12", count: 4, place, role, start, end, breakMin?, bonus?, bonusNote? }
@@ -43,28 +44,22 @@ function isCountTentative(t) {
   return t.kind === "count";
 }
 
-// 過ぎた仮シフトか（数えない）
-//   日付で決める：日付が今日より前（今日の分はまだ数える）
-//   回数で決める：月が今月より前（今月の分は、月が終わるまで残りの日に割り振って数える）
+// 日付が過ぎた仮シフトか（計算には働いたとして入れる。表示を薄い赤にする）
+//   日付あり：日付が今日より前
+//   日付が未定：入る予定だった月が今月より前（翌月になった）
 function isPastTentative(t) {
   if (isCountTentative(t)) return t.month < monthKey(new Date());
   return t.date < dateKey(new Date());
 }
 
-// 回数で決めた仮シフトの、計算用の仮の日付 ["2026-12-04", ...]（回数分）
-// その月の残りの日（今月なら今日から、先の月なら1日から、月末まで）に均等に割り振る
+// 日付が未定の仮シフトの、計算用の仮の日付 ["2026-12-04", ...]（回数分）
+// 働くかもしれない日（remainingDays）に均等に割り振る
 function countDates(t) {
-  if (isPastTentative(t)) return [];
-  const today = new Date();
-  const first = parseDate(`${t.month}-01`);
-  const from = monthKey(today) === t.month ? today.getDate() : 1;
-  const lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate(); // 月末の日
-  const days = lastDay - from + 1;
+  const days = remainingDays(t);
   const n = Math.max(0, Math.floor(Number(t.count) || 0));
   const dates = [];
-  for (let i = 0; i < n; i++) {
-    const day = from + Math.floor(((i + 0.5) * days) / n); // 区間の真ん中あたりの日
-    dates.push(dateKey(new Date(first.getFullYear(), first.getMonth(), day)));
+  for (let i = 0; i < n && days.length > 0; i++) {
+    dates.push(days[Math.floor(((i + 0.5) * days.length) / n)]); // 区間の真ん中あたりの日
   }
   return dates;
 }
@@ -104,9 +99,9 @@ function tentativeToShift(t, workplaces, date = t.date) {
   return shift;
 }
 
-// 日付が未定の仮シフトが働くかもしれない日（その月の残りの日：今月なら今日から、先の月なら1日から月末まで）
+// 日付が未定の仮シフトが働くかもしれない日
+//   今月：今日から月末まで、先の月と過ぎた月：1日から月末まで（過ぎた月は、その月のどこかで働いたとして数える）
 function remainingDays(t) {
-  if (isPastTentative(t)) return [];
   const today = new Date();
   const first = parseDate(`${t.month}-01`);
   const from = monthKey(today) === t.month ? today.getDate() : 1;
@@ -141,9 +136,8 @@ function countShiftDates(t, workplaces) {
   return countDates(t);
 }
 
-// 仮シフト → 数えるシフトの配列（日付で決めたものは1つ、回数で決めたものは回数分）。過ぎたものは []
+// 仮シフト → 数えるシフトの配列（日付で決めたものは1つ、回数で決めたものは回数分）。過ぎたものも数える
 function tentativeShifts(t, workplaces) {
-  if (isPastTentative(t)) return [];
   const dates = isCountTentative(t) ? countShiftDates(t, workplaces) : [t.date];
   return dates.map(d => tentativeToShift(t, workplaces, d)).filter(Boolean);
 }
@@ -175,7 +169,10 @@ function countSampleShift(t, workplaces) {
 function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
   container.textContent = "";
   const key = monthKey(viewMonth);
-  const list = loadTentatives().filter(t => isCountTentative(t) && t.month === key);
+  // 今月を見ているときは、入る予定だった月が過ぎた（薄い赤の）ものも出す。シフトとして追加か削除をしてもらうため
+  const thisMonth = monthKey(new Date());
+  const list = loadTentatives().filter(t => isCountTentative(t) &&
+    (t.month === key || (key === thisMonth && t.month < thisMonth)));
 
   const head = el("div", "tentative-head");
   const addButton = el("button", "", "＋ 仮シフト");
@@ -183,7 +180,9 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
   const { button: helpButton, text: helpText } = helpParts("help:tentative", [
     "仮シフト：まだ Google カレンダーに入れていない、入るつもりのシフトです。このアプリの中だけに保存します。",
     "「来月の収入（予定）」以外の計算（今月の見込み・上限・集計・予定設定）に、カレンダーのシフトと一緒に入ります。",
-    "日付が決まっている仮シフトは、カレンダーに点線の枠で出ます（日付が過ぎたものは数えません）。",
+    "日付が決まっている仮シフトは、カレンダーに点線の枠で出ます。",
+    "日付が過ぎた仮シフト（日付が未定のものは、入る予定だった月が過ぎたもの）は薄い赤になります。" +
+    "扶養を超えないように、働いたとして計算に入れたままにしています。働いたなら「シフトとして追加」、働かなかったなら「削除」をしてください。",
     "ここには、日付を「未定」にして月だけで登録したものが出ます（その月の残りの日の真ん中あたりで働いたとして計算します）。",
     "週払いなどで、働く日によって振り込まれる月が変わるときは、仮シフトの画面で「振り込まれる月」を選びます。",
     "Google カレンダーに同じ日・同じバイト先・重なる時間のシフトが入ると、その仮シフトは自動で消えます。",
@@ -206,8 +205,7 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
     const row = el("button", `tentative-row${past ? " past" : ""}${counted ? " count" : ""}`);
     row.type = "button";
     let amount = "バイト先が見つかりません";
-    if (past) amount = "過ぎた仮シフト（数えない）";
-    else if (found) amount = formatYen(shifts.reduce((s, x) => s + x.pay, 0));
+    if (found) amount = formatYen(shifts.reduce((s, x) => s + x.pay, 0)) + (past ? "（働いた扱い）" : "");
     // 日付が未定のものは「12月中・日付未定 17:00〜22:00」（前のしくみの何回分かのものは「× 3回」も付ける）
     const when = counted
       ? `${monthName(parseDate(`${t.month}-01`))}中・日付未定 ${t.start}〜${t.end}${Number(t.count) > 1 ? ` × ${t.count}回` : ""}`

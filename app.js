@@ -147,7 +147,8 @@ function makeTentativeChip(item) {
   // カレンダーにはバイト先の名前だけ出す（時間はマウスを乗せたときと、下の一覧に出る）
   chip.append(el("span", "text", event.summary));
   chip.title = `仮シフト ${formatEvent(event)}  ${event.summary}` +
-    (past ? "（過ぎたので数えない）" : shift ? `  ${formatYen(shift.pay)}` : "");
+    (shift ? `  ${formatYen(shift.pay)}` : "") +
+    (past ? "（日付が過ぎました。働いたとして数えています。シフトとして追加か削除をしてください）" : "");
   chip.onclick = (e) => {
     if (isNarrow()) return; // スマホでは日付のマスを押したのと同じ（下の一覧から開く）
     e.stopPropagation();
@@ -332,8 +333,7 @@ function renderDayList() {
       ? [shift.place, shift.role].filter(Boolean).join(" ")
       : event.summary || "（タイトルなし）";
     let amount = "";
-    if (tentative && isPastTentative(tentative)) amount = "過ぎた仮シフト";
-    else if (shift) amount = formatYen(shift.pay);
+    if (shift) amount = formatYen(shift.pay) + (tentative && isPastTentative(tentative) ? "（働いた扱い）" : "");
     row.append(
       el("span", "tentative-when", tentative ? `仮 ${time}` : time),
       el("span", "tentative-what", name),
@@ -395,7 +395,7 @@ function renderAll() {
       tentatives = loadTentatives();
     }
   }
-  const tentativeItems = []; // カレンダーの表に出す分（過ぎたものも薄く出す）
+  const tentativeItems = []; // カレンダーの表に出す分（過ぎたものは薄い赤で出す）
   const countedTentatives = []; // 数える仮シフトのシフト（回数で決めたものは回数分）
   const activeTentatives = []; // 右のパネルの内訳に出す分 [{ t, shift, count }]
   for (const t of tentatives) {
@@ -419,7 +419,7 @@ function renderAll() {
     }
     const shift = tentativeToShift(t, workplaces);
     tentativeItems.push({ event: tentativeEvent(t), tentative: t, shift });
-    if (!shift || isPastTentative(t)) continue;
+    if (!shift) continue; // 日付が過ぎたものも、働いたとして数える
     if (shift.payType === "daily") {
       const key = `${shift.place}|${shift.day}`;
       if (dailyPaid.has(key)) {
@@ -433,7 +433,7 @@ function renderAll() {
   }
 
   // 月ごとの収入（振り込まれる月で数える。確定額があれば確定額、なければカレンダー＋仮シフトの額）
-  // 仮シフトは日付が過ぎていないものだけなので、もう締まった月（自動確定する月）には入らない
+  // 日付が過ぎた仮シフトも入れるので、もう締まった月（自動確定する月）の額にも入る（扶養を超えないよう多めに見る）
   const allShifts = [...shifts, ...countedTentatives];
   let income = incomeByMonth(allShifts, workplaces, loadConfirmed());
 
