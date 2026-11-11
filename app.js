@@ -134,16 +134,23 @@ function formatEvent(event) {
   return `${day} ${time(start)}-${time(end)}`;
 }
 
+// 予定の時間「17:00-22:00」の部品。スマホでは終わりの時間（-22:00）を隠して「17:00」だけにする
+function chipTime(event, prefix = "") {
+  const hhmm = (d) => d.toTimeString().slice(0, 5);
+  const time = el("span", "text chip-time");
+  if (prefix) time.append(el("span", "t-prefix", prefix)); // 「仮 」。スマホでは点線の枠で分かるので隠す
+  time.append(hhmm(new Date(event.start.dateTime)), el("span", "t-end", `-${hhmm(new Date(event.end.dateTime))}`));
+  return time;
+}
+
 // 仮シフト1件分の表示（点線の枠）。押すと仮シフトの画面が開く
 function makeTentativeChip(item) {
   const { event, tentative, shift } = item;
   const past = isPastTentative(tentative);
   const chip = el("button", `chip timed tentative${past ? " past" : ""}`);
   chip.type = "button";
-  const hhmm = (d) => d.toTimeString().slice(0, 5);
-  const time = `${hhmm(new Date(event.start.dateTime))}-${hhmm(new Date(event.end.dateTime))}`;
   const body = el("span", "chip-body");
-  body.append(el("span", "text chip-time", `仮 ${time}`), el("span", "text", event.summary));
+  body.append(chipTime(event, "仮 "), el("span", "text", event.summary));
   chip.append(body);
   chip.title = `仮シフト ${formatEvent(event)}  ${event.summary}` +
     (past ? "（過ぎたので数えない）" : shift ? `  ${formatYen(shift.pay)}` : "");
@@ -178,13 +185,11 @@ function makeChip(item) {
   const dot = el("span", "dot");
   dot.style.background = cal.backgroundColor;
 
-  const hhmm = (d) => d.toTimeString().slice(0, 5);
-  const time = `${hhmm(new Date(event.start.dateTime))}-${hhmm(new Date(event.end.dateTime))}`;
   const body = el("span", "chip-body");
   // バイトのシフトは、予定名ではなくバイト先の名前（と役職）を出す（勤怠設定で名前を変えるとここも変わる）
   // 予定名は、マウスを乗せたときと、予定を押した画面の見出しに出る
   const shownTitle = shift ? [shift.place, shift.role].filter(Boolean).join(" ") : title;
-  body.append(el("span", "text chip-time", time), el("span", "text", shownTitle));
+  body.append(chipTime(event), el("span", "text", shownTitle));
   chip.append(dot, body);
   if (shift && shift.bonus) chip.append(el("span", "bonus-mark", "＋"));
 
@@ -373,7 +378,7 @@ async function loadMonth() {
     items = [];
     loadedStart = null; // 予定を読み込めていないので、自動確定はしない
     renderAll();
-    message.textContent = "右上の「Google でログイン」を押すと予定が表示されます。";
+    message.textContent = "「Google でログイン」を押すと予定が表示されます（スマホでは左上の ☰ の中にあります）。";
     return;
   }
 
@@ -448,6 +453,25 @@ async function onLogin() {
 
 // ===== 起動時 =====
 document.getElementById("login").onclick = login;
+document.getElementById("login-menu").onclick = () => {
+  closeDrawer();
+  login();
+};
+
+// ===== スマホのメニュー（左上の三本線で開く引き出し） =====
+function openDrawer() {
+  document.body.classList.add("drawer-open");
+}
+function closeDrawer() {
+  document.body.classList.remove("drawer-open");
+}
+document.getElementById("menu-toggle").onclick = openDrawer;
+document.getElementById("menu-close").onclick = closeDrawer;
+document.getElementById("drawer-backdrop").onclick = closeDrawer;
+// メニューの画面を選んだら閉じる（カレンダーのチェックは、続けて選べるように閉じない）
+for (const button of document.querySelectorAll(".menu-item")) {
+  button.addEventListener("click", closeDrawer);
+}
 showView("calendar");
 loadMonth();      // ログイン前でも空のカレンダーと集計を表示
 initGoogle(onLogin);

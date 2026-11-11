@@ -21,20 +21,31 @@
 <body>
   <!-- 上の帯：タイトル、月の移動、ログイン -->
   <header class="topbar">
+    <!-- スマホだけ：左上の三本線。押すと左からメニューが出る -->
+    <button id="menu-toggle" class="menu-toggle" aria-label="メニューを開く">☰</button>
     <h1>バイト収入管理</h1>
     <div class="month-nav">
       <button id="today">今日</button>
       <button id="prev" class="icon-btn" aria-label="前の月">‹</button>
-      <button id="next" class="icon-btn" aria-label="次の月">›</button>
       <span id="month-label"></span>
+      <button id="next" class="icon-btn" aria-label="次の月">›</button>
     </div>
-    <button id="add-shift">＋ シフト</button>
+    <button id="add-shift" aria-label="シフトを追加">＋<span class="wide-only"> シフト</span></button>
     <button id="login">Google でログイン</button>
   </header>
 
+  <!-- スマホでメニューを開いたときの、後ろの暗い部分（押すと閉じる） -->
+  <div id="drawer-backdrop" class="drawer-backdrop"></div>
+
   <div class="layout">
-    <!-- 左：メニューとカレンダーの選択 -->
-    <aside class="sidebar">
+    <!-- 左：メニューとカレンダーの選択（スマホでは三本線で開く引き出し） -->
+    <aside class="sidebar" id="sidebar">
+      <div class="drawer-head">
+        <strong>バイト収入管理</strong>
+        <button id="menu-close" class="icon-btn" aria-label="メニューを閉じる">×</button>
+      </div>
+      <!-- スマホでは、ログインのボタンもメニューの中に置く -->
+      <button id="login-menu" class="login-menu">Google でログイン</button>
       <nav class="menu">
         <button class="menu-item" data-view="calendar">表示</button>
         <button class="menu-item" data-view="stats">集計</button>

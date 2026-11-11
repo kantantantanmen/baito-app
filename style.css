@@ -480,16 +480,78 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
   .panel-box { margin-bottom: 0; }
 }
 
-/* ===== スマホなど幅が狭いとき：一覧をカレンダーの上に置く ===== */
+/* スマホ用の部品は、広い画面では隠す */
+.menu-toggle, .drawer-head, .login-menu, .drawer-backdrop { display: none; }
+
+/* ===== スマホなど幅が狭いとき ===== */
 @media (max-width: 700px) {
-  .topbar { gap: 8px; }
-  .topbar h1 { display: none; }
+  /* --- 上の帯：☰ ‹ 2026年11月 › 今日 ＋ の1行 --- */
+  .topbar { gap: 4px; padding: 6px 8px; position: sticky; top: 0; z-index: 20; background: var(--bg); }
+  .topbar h1, .wide-only, #login { display: none; }
+  .menu-toggle { display: block; border: none; font-size: 1.4rem; line-height: 1; padding: 4px 8px; }
+  .month-nav { gap: 0; justify-content: center; }
+  #prev { order: 1; }
+  #month-label { order: 2; margin: 0 2px; font-size: 1.05rem; font-weight: 600; white-space: nowrap; }
+  #next { order: 3; }
+  #today { order: 4; margin-left: 6px; padding: 4px 10px; font-size: 0.85rem; white-space: nowrap; }
+  #add-shift { width: 36px; height: 36px; padding: 0; font-size: 1.2rem; flex-shrink: 0; }
+
+  /* --- 左のメニュー：三本線で左から出てくる引き出しにする --- */
   .layout { grid-template-columns: 1fr; }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    width: min(300px, 82vw);
+    padding: calc(12px + env(safe-area-inset-top)) 16px 24px;
+    overflow-y: auto;
+    background: var(--bg);
+    border-right: 1px solid var(--line);
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+    transform: translateX(-105%);
+    transition: transform 0.2s ease;
+  }
+  .drawer-open .sidebar { transform: translateX(0); }
+  .drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(0, 0, 0, 0.35);
+  }
+  .drawer-open .drawer-backdrop { display: block; }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .login-menu { display: block; width: 100%; margin-bottom: 12px; padding: 10px; background: var(--accent); color: #fff; border: none; }
+  .menu { flex-direction: column; }
+  .menu-item { padding: 12px 16px; font-size: 1rem; }
+  /* メニューの中のカレンダーの選択は、どの画面でも出す */
+  .view-confirm .calendar-section,
+  .view-plan .calendar-section,
+  .view-stats .calendar-section,
+  .view-settings .calendar-section { display: block; }
+
   .view-settings .settings { grid-column: 1 / -1; padding: 16px; }
-  .menu { flex-direction: row; }
+  .layout > * { min-width: 0; } /* 中身が広くても、画面からはみ出さないようにする */
+  .page { padding: 16px; }
   .field { flex-wrap: wrap; gap: 4px; }
-  .sidebar { border-right: none; border-bottom: 1px solid var(--line); }
-  .day { min-height: 64px; padding: 1px; }
-  .chip { font-size: 0.65rem; padding: 1px 2px; }
+  .summary { padding: 12px; grid-template-columns: minmax(0, 1fr); } /* 集計の箱は1列に並べる */
+  #message:empty { display: none; }
+
+  /* --- カレンダー：予定は「17:00 たいら」の1行で、色の付いた札にする --- */
+  .weekdays div { border-left: none; }
+  .day { min-height: 72px; padding: 1px 1px 2px; }
+  .day-number { width: 22px; height: 22px; line-height: 22px; margin: 1px auto; }
+  .chip { font-size: 0.62rem; line-height: 1.4; padding: 1px 2px; margin-bottom: 1px; border-radius: 3px; }
+  .chip .text { text-overflow: clip; } /* 「…」を付けずに、入るだけ文字を出す */
+  .chip.timed { align-items: center; background: #eef0f3; }
+  .chip.shift { background: #dcefe7; color: #1d4d40; }
+  .chip.tentative { background: #f7f8fd; padding: 0 2px; }
+  .chip-body { flex-direction: row; gap: 2px; overflow: hidden; }
+  .chip-time { color: inherit; font-size: inherit; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .t-end, .t-prefix { display: none; }
   .dot { display: none; }
+
+  /* --- 仮シフトの一覧 --- */
+  .tentative { padding: 12px 12px 20px; }
 }
