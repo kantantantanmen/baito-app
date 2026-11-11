@@ -54,16 +54,43 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
 
   const last = loadLastShift();
   if (!last.times) last.times = {};
+  const today = dateKey(new Date());
+  const thisMonth = monthKey(new Date());
 
   shiftDialog.textContent = "";
   const form = el("form", "dialog-body");
   form.method = "dialog";
   form.append(el("h2", "dialog-title", dialogTitle));
 
+  // --- 仮シフトの決め方：日付で決める／回数で決める（仮シフトの画面だけ） ---
+  // 回数で決める：日にちは決まっていないけど、その月に何回入るかは決まっているとき
+  let kind = tentative && isCountTentative(tentative) ? "count" : "date";
+  const kindBox = el("div", "segmented kind-toggle");
+  const kindButtons = {};
+  for (const [value, text] of [["date", "日付で決める"], ["count", "回数で決める"]]) {
+    const b = el("button", "", text);
+    b.type = "button";
+    b.onclick = () => {
+      kind = value;
+      showKind();
+      update();
+    };
+    kindButtons[value] = b;
+    kindBox.append(b);
+  }
+
   // --- 入力欄 ---
   const date = el("input");
   date.type = "date";
-  date.value = tentative ? tentative.date : day;
+  date.value = tentative && tentative.date ? tentative.date : day;
+
+  // 回数で決めるとき：働く月と回数
+  const month = el("input");
+  month.type = "month";
+  month.min = thisMonth; // 過ぎた月には作れない
+  month.value = tentative && tentative.month ? tentative.month : (day.slice(0, 7) < thisMonth ? thisMonth : day.slice(0, 7));
+  const count = numberInput(tentative && tentative.count ? tentative.count : 4, 1);
+  count.step = 1;
 
   let firstPlace = workplaces.some(w => w.name === last.place) ? last.place : workplaces[0].name;
   if (tentative && workplaces.some(w => w.name === tentative.place)) firstPlace = tentative.place;
@@ -99,10 +126,19 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     end.value = tentative.end;
   }
 
+  // 休憩・ボーナス・メモ（仮シフトの画面だけ。予定を押した画面と同じ）
+  const breakInput = numberInput(tentative && tentative.breakMin !== undefined ? tentative.breakMin : "", 0);
+  breakInput.step = 5;
+  const breakHint = el("span", "muted small");
+  const bonus = numberInput(tentative && tentative.bonus ? tentative.bonus : "", 0);
+  bonus.step = 100;
+  bonus.placeholder = "0";
+  const bonusNote = textInput(tentative && tentative.bonusNote ? tentative.bonusNote : "", "例：繁忙期手当、皆勤賞");
+
   // Google カレンダーに追加できるか
   //   ・シフトを追加する画面：できる（カレンダーがなければ上で止めている）
   //   ・仮シフトを追加する画面：できない（仮シフトとして保存するだけ）
-  //   ・保存した仮シフトを押した画面：ログインしていればできる（入れたら仮シフトは消える）
+  //   ・保存した仮シフト（日付で決めたもの）を押した画面：ログインしていればできる（入れたら仮シフトは消える）
   const canAddToGoogle = calendars.length > 0 && (!isTentativeMode || !!tentative);
   let calendar = null;
   let calendarField = el("span"); // カレンダーを選ばないときは空
@@ -115,15 +151,29 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   const preview = el("div", "dialog-preview");
   const error = el("p", "warn");
 
+  const dateField = field("日付", date);
+  const monthField = field("働く月", month);
+  const countField = field("回数", count, "回");
+  const countNote = el("p", "muted small",
+    "日にちが決まっていないので、その月の残りの日（今月なら今日から月末まで）に均等に割り振って計算します" +
+    "（週払い・当日払いでも、振り込まれる月が決まるように）。日にちが決まったら、日付で決める仮シフトかカレンダーに移して、回数を減らしてください。");
+  const extraFields = [
+    field("休憩", breakInput, "分", breakHint),
+    field("ボーナス", bonus, "円（1回ごと）"),
+    field("メモ", bonusNote),
+  ];
+
+  if (isTentativeMode) form.append(kindBox);
   form.append(
-    field("日付", date),
+    dateField,
+    monthField,
+    countField,
     field("バイト先", place),
     roleField,
     field("時間", start, "〜", end),
-    calendarField,
-    preview,
-    error,
   );
+  if (isTentativeMode) form.append(...extraFields);
+  form.append(calendarField, countNote, preview, error);
   if (isTentativeMode) {
     form.append(el("p", "muted small",
       "仮シフト：まだ決まっていない、入るつもりのシフトです。このアプリの中だけに保存して、" +
@@ -136,7 +186,6 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   cancel.onclick = () => shiftDialog.close();
   const add = el("button", "primary", "Google カレンダーに追加");
   add.type = "button";
-  add.hidden = !canAddToGoogle;
   const saveTentative = el("button", canAddToGoogle ? "" : "primary", tentative ? "仮シフトを更新" : "仮シフトを追加");
   saveTentative.type = "button";
   const tentativeAllowed = isTentativeMode; // シフトを追加する画面では仮シフトにしない
@@ -153,6 +202,18 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   }
   buttons.append(cancel, saveTentative, add);
   form.append(buttons);
+
+  // 決め方（日付／回数）に合わせて、出す欄とボタンを切り替える
+  const showKind = () => {
+    const isCount = isTentativeMode && kind === "count";
+    for (const [value, b] of Object.entries(kindButtons)) b.classList.toggle("active", value === kind);
+    dateField.hidden = isCount;
+    monthField.hidden = !isCount;
+    countField.hidden = !isCount;
+    countNote.hidden = !isCount;
+    calendarField.hidden = isCount; // 日にちがないので Google カレンダーには入れられない
+    add.hidden = !canAddToGoogle || isCount;
+  };
 
   // 入力内容から、Google カレンダーに送る予定を作る
   const buildEvent = () => {
@@ -172,34 +233,111 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     };
   };
 
-  // 働く時間と給料の見込みを表示する
-  const update = () => {
-    preview.textContent = "";
-    error.textContent = "";
-    // 過ぎた日付は仮シフトにできない（Google カレンダーへの追加と、仮シフトの削除はできる）
-    const past = date.value && date.value < dateKey(new Date());
-    saveTentative.hidden = !tentativeAllowed || past;
-    if (tentativeAllowed && past) {
-      error.textContent = canAddToGoogle
+  // 今の入力から、保存する仮シフトの形を作る
+  const draft = () => {
+    const t = {
+      id: tentative ? tentative.id : undefined,
+      place: place.value, role: role.value, start: start.value, end: end.value,
+    };
+    if (kind === "count") {
+      t.kind = "count";
+      t.month = month.value;
+      t.count = Math.max(1, Math.floor(Number(count.value) || 1));
+    } else {
+      t.date = date.value;
+    }
+    if (isTentativeMode) {
+      if (breakInput.value !== "") t.breakMin = Number(breakInput.value);
+      if (Number(bonus.value) > 0) t.bonus = Number(bonus.value);
+      if (bonusNote.value.trim()) t.bonusNote = bonusNote.value.trim();
+    }
+    return t;
+  };
+
+  // 入力が足りないか、過ぎていて仮シフトにできないか（理由の文字。問題なければ ""）
+  const problem = () => {
+    if (!start.value || !end.value) return "時間を入れてください。";
+    if (kind === "count" && isTentativeMode) {
+      if (!month.value) return "働く月を入れてください。";
+      if (month.value < thisMonth) return "過ぎた月は仮シフトにできません。";
+      return "";
+    }
+    if (!date.value) return "日付を入れてください。";
+    if (tentativeAllowed && date.value < today) {
+      return canAddToGoogle
         ? "過ぎた日付は仮シフトにできません。Google カレンダーには追加できます。"
         : "過ぎた日付は仮シフトにできません。";
     }
-    if (!date.value || !start.value || !end.value) return;
+    return "";
+  };
 
-    const ev = buildEvent();
-    // 計算用：時刻を、時差つきの形に直して eventToShift に渡す
-    const forCalc = {
-      summary: ev.summary,
-      start: { dateTime: new Date(ev.start.dateTime).toISOString() },
-      end: { dateTime: new Date(ev.end.dateTime).toISOString() },
-    };
-    const shift = eventToShift(forCalc, loadWorkplaces(), { place: place.value });
+  // 働く時間と給料の見込みを表示する
+  const update = () => {
+    preview.textContent = "";
+    error.textContent = problem();
+    const past = (kind === "count" && isTentativeMode)
+      ? month.value && month.value < thisMonth
+      : date.value && date.value < today;
+    saveTentative.hidden = !tentativeAllowed || past;
+    if (!start.value || !end.value) return;
+
+    // 1回分の給料（回数で決めるときは、その月の1日として計算した目安）
+    const t = draft();
+    let shift;
+    if (isTentativeMode) {
+      if (kind === "count") {
+        if (!month.value) return;
+        shift = countSampleShift(t, loadWorkplaces());
+      } else {
+        if (!date.value) return;
+        shift = tentativeToShift(t, loadWorkplaces());
+      }
+    } else {
+      if (!date.value) return;
+      const ev = buildEvent();
+      // 計算用：時刻を、時差つきの形に直して eventToShift に渡す
+      const forCalc = {
+        summary: ev.summary,
+        start: { dateTime: new Date(ev.start.dateTime).toISOString() },
+        end: { dateTime: new Date(ev.end.dateTime).toISOString() },
+      };
+      shift = eventToShift(forCalc, loadWorkplaces(), { place: place.value });
+    }
     if (!shift) return;
-    addRow(preview, "時間", `${start.value}〜${end.value}${ev.end.dateTime.startsWith(date.value) ? "" : "（翌日）"}`);
+
+    breakInput.placeholder = String(shift.autoBreak);
+    breakHint.textContent = `空欄なら勤怠設定どおり（${formatHours(shift.autoBreak)}）`;
+    const nextDay = end.value <= start.value ? "（翌日）" : "";
+    addRow(preview, "時間", `${start.value}〜${end.value}${nextDay}`);
     addRow(preview, "働く時間", `${formatHours(shift.workMin)}（休憩${formatHours(shift.breakMin)}）`);
+    if (shift.nightMin) addRow(preview, "うち夜間", formatHours(shift.nightMin));
+    if (shift.overtimeMin) addRow(preview, "うち残業", formatHours(shift.overtimeMin));
     if (shift.allowance) addRow(preview, "役職の手当", formatYen(shift.allowance));
     if (shift.transport) addRow(preview, "交通費", formatYen(shift.transport));
-    addRow(preview, "給料の見込み", formatYen(shift.pay), "total big");
+    if (shift.bonus) addRow(preview, "ボーナス", formatYen(shift.bonus));
+
+    if (isTentativeMode && kind === "count") {
+      addRow(preview, "1回の給料", formatYen(shift.pay));
+      // 合計は、仮の日付で回数分を計算した額（週払い・当日払いは振り込まれる月も出す）
+      const list = tentativeShifts(t, loadWorkplaces());
+      addRow(preview, `合計（${list.length}回）`, formatYen(list.reduce((s, x) => s + x.pay, 0)), "total big");
+      const byMonth = {};
+      for (const s of list) {
+        const m = s.payDate.slice(0, 7);
+        byMonth[m] = (byMonth[m] || 0) + s.pay;
+      }
+      const months = Object.keys(byMonth).sort();
+      if (months.length > 1) {
+        for (const m of months) {
+          addRow(preview, `　${monthName(parseDate(`${m}-01`))}に振り込まれる分`, formatYen(byMonth[m]));
+        }
+      } else if (months.length === 1) {
+        addRow(preview, "振り込まれる月", monthName(parseDate(`${months[0]}-01`)));
+      }
+    } else {
+      addRow(preview, "給料の見込み", formatYen(shift.pay), "total big");
+      addRow(preview, "振込予定日", shortDate(shift.payDate));
+    }
   };
   place.onchange = () => {
     fillRoles();
@@ -207,7 +345,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     update();
   };
   role.onchange = update;
-  for (const input of [date, start, end]) input.oninput = update;
+  for (const input of [date, month, count, start, end, breakInput, bonus, bonusNote]) input.oninput = update;
 
   // 次回の初期値として覚えておく
   const remember = () => {
@@ -243,16 +381,12 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
 
   // 仮シフトとして保存するボタン
   saveTentative.onclick = () => {
-    if (!date.value || !start.value || !end.value) {
-      error.textContent = "日付と時間を入れてください。";
+    const p = problem();
+    if (!tentativeAllowed || p) {
+      error.textContent = p;
       return;
     }
-    if (!tentativeAllowed || date.value < dateKey(new Date())) return; // 過ぎた日付は保存しない（Enter で押されたとき用）
-    upsertTentative({
-      id: tentative ? tentative.id : undefined,
-      date: date.value, place: place.value, role: role.value,
-      start: start.value, end: end.value,
-    });
+    upsertTentative(draft());
     remember();
     shiftDialog.close();
     onSaved();
@@ -265,6 +399,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     else submit();
   };
 
+  showKind();
   update();
   shiftDialog.append(form);
   shiftDialog.showModal();

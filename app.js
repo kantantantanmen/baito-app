@@ -271,9 +271,27 @@ function renderAll() {
   // 仮シフト：日付が過ぎていないものだけ数える（日給は、カレンダーのシフトと同じ日なら1日分だけ）
   const tentatives = loadTentatives();
   const tentativeItems = []; // カレンダーの表に出す分（過ぎたものも薄く出す）
-  const tentativeShifts = [];
-  const activeTentatives = []; // 数えている仮シフト [{ t, shift }]（右のパネルの内訳に出す）
+  const countedTentatives = []; // 数える仮シフトのシフト（回数で決めたものは回数分）
+  const activeTentatives = []; // 右のパネルの内訳に出す分 [{ t, shift, count }]
   for (const t of tentatives) {
+    if (isCountTentative(t)) {
+      // 回数で決めたもの：日付がないのでカレンダーの表には出さない。
+      // 仮の日付で回数分のシフトを作り、振り込まれる月ごとにまとめて内訳に出す
+      //（仮の日付なので、日給の「同じ日は1日分」の判定はしない）
+      const list = tentativeShifts(t, workplaces);
+      countedTentatives.push(...list);
+      const byPayMonth = {};
+      for (const s of list) {
+        const key = s.payDate.slice(0, 7);
+        const g = byPayMonth[key] || (byPayMonth[key] = { ...s, pay: 0, workMin: 0, count: 0 });
+        g.pay += s.pay;
+        g.workMin += s.workMin;
+        g.count += 1;
+        if (s.payDate > g.payDate) g.payDate = s.payDate; // 何回かに分けて振り込まれるときは最後の日
+      }
+      for (const g of Object.values(byPayMonth)) activeTentatives.push({ t, shift: g, count: g.count });
+      continue;
+    }
     const shift = tentativeToShift(t, workplaces);
     tentativeItems.push({ event: tentativeEvent(t), tentative: t, shift });
     if (!shift || isPastTentative(t)) continue;
@@ -285,13 +303,13 @@ function renderAll() {
       }
       dailyPaid.add(key);
     }
-    tentativeShifts.push(shift);
-    activeTentatives.push({ t, shift });
+    countedTentatives.push(shift);
+    activeTentatives.push({ t, shift, count: 1 });
   }
 
   // 月ごとの収入（振り込まれる月で数える。確定額があれば確定額、なければカレンダー＋仮シフトの額）
   // 仮シフトは日付が過ぎていないものだけなので、もう締まった月（自動確定する月）には入らない
-  const allShifts = [...shifts, ...tentativeShifts];
+  const allShifts = [...shifts, ...countedTentatives];
   let income = incomeByMonth(allShifts, workplaces, loadConfirmed());
 
   // もう勤務が入らない収入の月は、カレンダーの額で自動確定する（シフトがなければ0円）

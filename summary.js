@@ -138,10 +138,16 @@ function incomeBox(title, subtitle, income, month, info, slot, extraRows = [], t
   // 仮シフトの1回ずつ（日付・時間・バイト先・振込日・金額）
   if (info.source !== "plan" && tentatives.length > 0) {
     const sum = tentatives.reduce((s, x) => s + x.shift.pay, 0);
-    details.append(el("p", "tentative-sub", `仮シフト ${tentatives.length}回・${formatYen(sum)}${tentativeNote}`));
-    for (const { t, shift } of tentatives) {
+    const times = tentatives.reduce((s, x) => s + (x.count || 1), 0);
+    details.append(el("p", "tentative-sub", `仮シフト ${times}回・${formatYen(sum)}${tentativeNote}`));
+    for (const { t, shift, count } of tentatives) {
       const label = el("span", "income-label");
-      label.append(`${shortDate(t.date)} ${t.start}-${t.end} ${[shift.place, shift.role].filter(Boolean).join(" ")}`);
+      const who = [shift.place, shift.role].filter(Boolean).join(" ");
+      // 回数で決めたものは「12月中 17:00-22:00 × 4回」、日付で決めたものは「12/5 17:00-22:00」
+      const when = isCountTentative(t)
+        ? `${monthName(parseDate(`${t.month}-01`))}中 ${t.start}-${t.end} × ${count}回`
+        : `${shortDate(t.date)} ${t.start}-${t.end}`;
+      label.append(`${when} ${who}`);
       label.append(el("span", "income-detail", `${shortDate(shift.payDate)}振込 ・ ${formatHours(shift.workMin)}`));
       addRow(details, label, formatYen(shift.pay), "tentative-line");
     }
