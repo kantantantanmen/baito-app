@@ -107,7 +107,7 @@ function incomeBox(title, subtitle, income, month, info, slot, extraRows = [], t
   if (info.source === "actual" && info.expected > 0) {
     box.appendChild(el("p", "muted", `うち見込み ${formatYen(info.expected)}`));
   }
-  if (info.source === "actual" && info.value > info.confirmed) {
+  if (slot !== "next" && info.source === "actual" && info.value > info.confirmed) { // 来月の箱には出さない
     box.appendChild(el("p", "muted", `うち未確定 ${formatYen(info.value - info.confirmed)}`));
   }
   for (const [label, value, className] of extraRows) addRow(box, label, value, className || "");
@@ -194,6 +194,8 @@ function renderSummary(container, ctx) {
   const plan1 = planFor(plans, monthKey(n1));
   const nextExtra = [
     ["カレンダー＋仮シフト", formatYen(withTentative), "ref"],
+    // 3か月平均に入れる額（集計の月平均の表の「収入」、カレンダー優先と同じ）
+    ["うち平均に入る額", formatYen(avgValue(n1)), "ref"],
     [`参考：予定設定の${monthName(n1)}`, plan1 == null ? "未設定" : formatYen(plan1), "ref"],
   ];
   container.appendChild(
@@ -202,6 +204,9 @@ function renderSummary(container, ctx) {
               nextExtra, tentativesFor(ctx.activeTentatives, n1), "",
               "合計は、カレンダーのシフトだけで計算しています（仮シフトは入れません）。" +
               "仮シフトも入れた額は「カレンダー＋仮シフト」の行に出しています。" +
+              "「うち平均に入る額」は、そのうち3か月平均の計算に入れる額です（平均外のバイト先の分は入れません）。" +
+              "集計の月平均の表の「収入」（カレンダー優先）と同じ額です。" +
+              "カレンダーにも仮シフトにもシフトがない月は、予定設定の額になります。" +
               "「参考：予定設定」は予定設定の画面で入れた金額で、合計には入れていません。"));
 
   // ---------- 3. 来月の収入の上限（＝今月どれだけ働いてよいか） ----------
