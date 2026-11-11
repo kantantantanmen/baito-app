@@ -62,27 +62,25 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   form.method = "dialog";
   form.append(el("h2", "dialog-title", dialogTitle));
 
-  // --- 仮シフトの決め方：日付で決める／回数で決める（仮シフトの画面だけ） ---
-  // 回数で決める：日にちは決まっていないけど、その月に何回入るかは決まっているとき
-  let kind = tentative && isCountTentative(tentative) ? "count" : "date";
-  const kindBox = el("div", "segmented kind-toggle");
-  const kindButtons = {};
-  for (const [value, text] of [["date", "日付で決める"], ["count", "回数で決める"]]) {
-    const b = el("button", "", text);
-    b.type = "button";
-    b.onclick = () => {
-      kind = value;
-      showKind();
-      update();
-    };
-    kindButtons[value] = b;
-    kindBox.append(b);
-  }
-
   // --- 入力欄 ---
   const date = el("input");
   date.type = "date";
   date.value = tentative && tentative.date ? tentative.date : day;
+
+  // 日付は未定（仮シフトの画面だけ）：チェックすると、日付の代わりに「月」と「回数」を入れる
+  // 日付の欄を空にしたときも、未定として扱う
+  let kind = tentative && isCountTentative(tentative) ? "count" : "date";
+  const undecided = el("input");
+  undecided.type = "checkbox";
+  undecided.checked = kind === "count";
+  const undecidedLabel = el("label", "check");
+  undecidedLabel.append(undecided, "未定");
+  undecided.onchange = () => {
+    kind = undecided.checked ? "count" : "date";
+    if (kind === "date" && !date.value) date.value = day; // 未定をやめたら、日付を入れ直す
+    showKind();
+    update();
+  };
 
   // 回数で決めるとき：働く月と回数
   const month = el("input");
@@ -151,19 +149,18 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   const preview = el("div", "dialog-preview");
   const error = el("p", "warn");
 
-  const dateField = field("日付", date);
+  const dateField = isTentativeMode ? field("日付", date, undecidedLabel) : field("日付", date);
   const monthField = field("働く月", month);
   const countField = field("回数", count, "回");
   const countNote = el("p", "muted small",
-    "日にちが決まっていないので、その月の残りの日（今月なら今日から月末まで）に均等に割り振って計算します" +
-    "（週払い・当日払いでも、振り込まれる月が決まるように）。日にちが決まったら、日付で決める仮シフトかカレンダーに移して、回数を減らしてください。");
+    "日付が未定なので、その月の残りの日（今月なら今日から月末まで）に均等に割り振って計算します" +
+    "（週払い・当日払いでも、振り込まれる月が決まるように）。日付が決まったら、押して日付を入れ直すか、回数を減らして日付つきの仮シフトを足してください。");
   const extraFields = [
     field("休憩", breakInput, "分", breakHint),
     field("ボーナス", bonus, "円（1回ごと）"),
     field("メモ", bonusNote),
   ];
 
-  if (isTentativeMode) form.append(kindBox);
   form.append(
     dateField,
     monthField,
@@ -203,11 +200,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   buttons.append(cancel, saveTentative, add);
   form.append(buttons);
 
-  // 決め方（日付／回数）に合わせて、出す欄とボタンを切り替える
+  // 日付が決まっているか（未定か）に合わせて、出す欄とボタンを切り替える
   const showKind = () => {
     const isCount = isTentativeMode && kind === "count";
-    for (const [value, b] of Object.entries(kindButtons)) b.classList.toggle("active", value === kind);
-    dateField.hidden = isCount;
+    date.disabled = isCount; // 未定のときは日付を入れない（欄は「未定」のチェックのために残す）
+    if (isCount && date.value) month.value = date.value.slice(0, 7) < thisMonth ? thisMonth : date.value.slice(0, 7);
     monthField.hidden = !isCount;
     countField.hidden = !isCount;
     countNote.hidden = !isCount;
@@ -346,6 +343,15 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   };
   role.onchange = update;
   for (const input of [date, month, count, start, end, breakInput, bonus, bonusNote]) input.oninput = update;
+  // 仮シフトの画面で日付を空にしたら、「未定」にする
+  date.oninput = () => {
+    if (isTentativeMode && !date.value) {
+      undecided.checked = true;
+      kind = "count";
+      showKind();
+    }
+    update();
+  };
 
   // 次回の初期値として覚えておく
   const remember = () => {

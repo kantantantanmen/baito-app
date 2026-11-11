@@ -3,8 +3,8 @@
 //   ・日付が過ぎた仮シフトは数えない（本当に働いたならカレンダーに入っているはずなので）
 //   ・「Google カレンダーに追加」を押すと、カレンダーに予定を作って仮シフトは消える（二重に数えないため）
 // 形は2種類（どちらも休憩・ボーナスは、空なら勤怠設定どおり／なし）
-//   日付で決める：{ id, date: "2026-12-05", place, role, start: "17:00", end: "22:00", breakMin?, bonus?, bonusNote? }
-//   回数で決める：{ id, kind: "count", month: "2026-12", count: 4, place, role, start, end, breakMin?, bonus?, bonusNote? }
+//   日付あり　：{ id, date: "2026-12-05", place, role, start: "17:00", end: "22:00", breakMin?, bonus?, bonusNote? }
+//   日付が未定：{ id, kind: "count", month: "2026-12", count: 4, place, role, start, end, breakMin?, bonus?, bonusNote? }
 //     日付が決まっていないので、計算のときは、その月の残りの日（今月なら今日から月末まで）に
 //     均等に割り振った仮の日付で1回ずつ給料を出す（週払い・当日払いでも、振り込まれる月が決まるように）
 const TENTATIVE_KEY = "baito-tentative";
@@ -133,7 +133,7 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
       "まだ Google カレンダーに入れていない、入るつもりのシフトです。" +
       "「来月の収入（予定）」以外の計算（今月の見込み・上限・集計・予定設定）に、カレンダーのシフトと一緒に入ります。" +
       "日付が過ぎた仮シフトは数えません。シフトが決まったら、押して「Google カレンダーに追加」を選ぶと、仮シフトは消えてカレンダーの予定になります。" +
-      "日にちが決まっていないときは「回数で決める」で、月と回数だけ入れられます（その月の残りの日に均等に割り振って計算します）。"),
+      "日付がまだ決まっていないときは、日付の「未定」にチェックすると、月と回数だけで登録できます（その月の残りの日に均等に割り振って計算します）。"),
   );
 
   if (list.length === 0) {
