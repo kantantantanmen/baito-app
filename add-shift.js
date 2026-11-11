@@ -206,7 +206,17 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     ? `この日の1回分を、日付ありの仮シフト（または Google カレンダーの予定）にします。` +
       `残りの${restCount}回は、${monthName(parseDate(`${splitFrom.month}-01`))}中・未定のまま残ります。`
     : "日付が未定だった仮シフトが、この日の仮シフト（または Google カレンダーの予定）になります。");
-  form.append(splitNote, buttons);
+  // 保存した仮シフトを開いたのに「Google カレンダーに追加」が出せないとき、その理由とやること
+  //   ・日付が未定：「未定」を外して日付を入れる
+  //   ・ログインしていない（通行証は1時間で切れる）：ログインしてから開き直す
+  const googleHint = el("div", "google-hint");
+  const loginButton = el("button", "", "Google でログイン");
+  loginButton.type = "button";
+  loginButton.onclick = () => {
+    shiftDialog.close();
+    login(); // ログインできたら予定を読み直す。そのあと、この仮シフトをもう一度押す
+  };
+  form.append(splitNote, googleHint, buttons);
 
   // 未定の仮シフトから1回分を取り出したあとの、元の仮シフトの片付け（残りの回数を減らす。0回なら消す）
   const finishSplit = () => {
@@ -227,6 +237,19 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     splitNote.hidden = !(splitFrom && !isCount);
     saveTentative.textContent = splitFrom && !isCount ? "この日の仮シフトにする"
       : tentative ? "仮シフトを更新" : "仮シフトを追加";
+
+    googleHint.textContent = "";
+    if (tentative && isCount) {
+      googleHint.append(el("p", "muted small",
+        "Google カレンダーに入れる（普通のシフトにする）には、日付の「未定」を外して日付を入れてください。"));
+    } else if (tentative && calendars.length === 0) {
+      googleHint.append(
+        el("p", "muted small",
+          "Google カレンダーに入れる（普通のシフトにする）には、ログインが必要です（ログインは1時間で切れます）。" +
+          "ログインしたら、もう一度この仮シフトを押してください。"),
+        loginButton,
+      );
+    }
   };
 
   // 入力内容から、Google カレンダーに送る予定を作る

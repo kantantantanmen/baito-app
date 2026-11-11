@@ -555,3 +555,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
   /* --- 仮シフトの一覧 --- */
   .tentative { padding: 12px 12px 20px; }
 }
+
+/* 仮シフトの画面：Google カレンダーに入れられないときの案内 */
+.google-hint p { margin: 8px 0 4px; }
+.google-hint button { background: var(--accent); color: #fff; border: none; }
