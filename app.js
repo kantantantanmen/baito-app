@@ -385,7 +385,16 @@ function renderAll() {
   }
 
   // 仮シフト：日付が過ぎていないものだけ数える（日給は、カレンダーのシフトと同じ日なら1日分だけ）
-  const tentatives = loadTentatives();
+  // 同じ日・同じバイト先・時間が重なるシフトがもうカレンダーにある仮シフトは、シフトになったので消す
+  // （予定を読み込めたときだけ。別の端末で Google カレンダーに入れたときなども、ここで消える）
+  let tentatives = loadTentatives();
+  if (loadedStart) {
+    const done = tentativesInCalendar(tentatives, items.filter(x => x.shift), workplaces);
+    if (done.length > 0) {
+      for (const t of done) removeTentative(t.id);
+      tentatives = loadTentatives();
+    }
+  }
   const tentativeItems = []; // カレンダーの表に出す分（過ぎたものも薄く出す）
   const countedTentatives = []; // 数える仮シフトのシフト（回数で決めたものは回数分）
   const activeTentatives = []; // 右のパネルの内訳に出す分 [{ t, shift, count }]
@@ -531,7 +540,7 @@ async function loadMonth() {
   }
 
   const myCount = ++loadCount;
-  message.textContent = "読み込み中...";
+  // 「読み込み中」は出さない（月を替えたときは、手元の予定で先に描いてあるので）
   const { start, end } = fetchRange();
 
   try {

@@ -104,16 +104,69 @@ function tentativeToShift(t, workplaces, date = t.date) {
   return shift;
 }
 
+// 日付が未定の仮シフトが働くかもしれない日（その月の残りの日：今月なら今日から、先の月なら1日から月末まで）
+function remainingDays(t) {
+  if (isPastTentative(t)) return [];
+  const today = new Date();
+  const first = parseDate(`${t.month}-01`);
+  const from = monthKey(today) === t.month ? today.getDate() : 1;
+  const lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  const days = [];
+  for (let day = from; day <= lastDay; day++) days.push(dateKey(new Date(first.getFullYear(), first.getMonth(), day)));
+  return days;
+}
+
+// 日付が未定の仮シフトで、働く日によって振り込まれる月が変わるとき、その月の一覧 ["2026-12", "2027-01"]
+// （週払い・当日払いや、月の途中で締めるバイト先など）。1つに決まるときは長さ1
+function possiblePayMonths(t, workplaces) {
+  const months = new Set();
+  for (const d of remainingDays(t)) {
+    const s = tentativeToShift(t, workplaces, d);
+    if (s) months.add(s.payDate.slice(0, 7));
+  }
+  return [...months].sort();
+}
+
+// 日付が未定の仮シフトの、計算に使う日付
+//   振り込まれる月（payMonth）を選んであれば、その月に振り込まれる日の真ん中あたりの日
+//   そうでなければ、その月の残りの日に均等に割り振った日（countDates）
+function countShiftDates(t, workplaces) {
+  if (t.payMonth && (Number(t.count) || 1) === 1) {
+    const days = remainingDays(t).filter(d => {
+      const s = tentativeToShift(t, workplaces, d);
+      return s && s.payDate.slice(0, 7) === t.payMonth;
+    });
+    if (days.length > 0) return [days[Math.floor(days.length / 2)]];
+  }
+  return countDates(t);
+}
+
 // 仮シフト → 数えるシフトの配列（日付で決めたものは1つ、回数で決めたものは回数分）。過ぎたものは []
 function tentativeShifts(t, workplaces) {
   if (isPastTentative(t)) return [];
-  const dates = isCountTentative(t) ? countDates(t) : [t.date];
+  const dates = isCountTentative(t) ? countShiftDates(t, workplaces) : [t.date];
   return dates.map(d => tentativeToShift(t, workplaces, d)).filter(Boolean);
+}
+
+// 日付が決まっている仮シフトのうち、同じ日・同じバイト先で時間が重なるシフトがもうカレンダーにあるもの
+// （Google カレンダーに入れたあとも残ってしまったもの。二重に数えないように消す）
+function tentativesInCalendar(tentatives, calendarShifts, workplaces) {
+  return tentatives.filter(t => {
+    if (isCountTentative(t)) return false;
+    const ev = tentativeEvent(t);
+    const start = new Date(ev.start.dateTime);
+    const end = new Date(ev.end.dateTime);
+    const place = (tentativeToShift(t, workplaces) || {}).place || t.place;
+    return calendarShifts.some(({ event, shift }) =>
+      shift.place === place &&
+      new Date(event.start.dateTime) < end && start < new Date(event.end.dateTime));
+  });
 }
 
 // 回数で決めた仮シフトの、1回分の給料の目安（表示用。月の1日として計算する）
 function countSampleShift(t, workplaces) {
-  return tentativeToShift(t, workplaces, `${t.month}-01`);
+  const d = countShiftDates(t, workplaces)[0];
+  return tentativeToShift(t, workplaces, d || `${t.month}-01`);
 }
 
 // カレンダーの下の「仮シフト」の欄（表示中の月の分）
@@ -132,6 +185,8 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
     "「来月の収入（予定）」以外の計算（今月の見込み・上限・集計・予定設定）に、カレンダーのシフトと一緒に入ります。",
     "日付が決まっている仮シフトは、カレンダーに点線の枠で出ます（日付が過ぎたものは数えません）。",
     "ここには、日付を「未定」にして月だけで登録したものが出ます（その月の残りの日の真ん中あたりで働いたとして計算します）。",
+    "週払いなどで、働く日によって振り込まれる月が変わるときは、仮シフトの画面で「振り込まれる月」を選びます。",
+    "Google カレンダーに同じ日・同じバイト先・重なる時間のシフトが入ると、その仮シフトは自動で消えます。",
   ]);
   const title = el("div", "help-head");
   title.append(el("h3", "", `${monthName(viewMonth)}の日付未定の仮シフト`), helpButton);

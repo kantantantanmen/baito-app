@@ -151,6 +151,14 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
 
   const dateField = isTentativeMode ? field("日付", date, undecidedLabel) : field("日付", date);
   const monthField = field("働く月", month);
+  // 日付が未定で、働く日によって振り込まれる月が変わるとき（週払い・当日払い、月の途中で締めるなど）に選ぶ
+  const payMonth = el("select");
+  const payMonthField = field("振り込まれる月", payMonth);
+  let chosenPayMonth = tentative && tentative.payMonth ? tentative.payMonth : "";
+  payMonth.onchange = () => {
+    chosenPayMonth = payMonth.value;
+    update();
+  };
   const countNote = el("p", "muted small",
     "日付が決まったら「未定」を外して日付を入れてください。" +
     (tentative ? "「シフトとして追加」もできるようになります。" : "") +
@@ -160,6 +168,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   form.append(
     dateField,
     monthField,
+    payMonthField,
     field("時間", start, "〜", end),
     field("バイト先", place),
     roleField,
@@ -269,6 +278,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       t.kind = "count";
       t.month = month.value;
       t.count = keptCount;
+      if (!payMonthField.hidden && payMonth.value) t.payMonth = payMonth.value;
     } else {
       t.date = date.value;
     }
@@ -295,6 +305,25 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     return "";
   };
 
+  // 「振り込まれる月」の選択肢を作り直す。働く日によって振り込まれる月が変わるときだけ出す
+  const refreshPayMonths = (isCount) => {
+    payMonthField.hidden = true;
+    if (!isCount || !month.value || !start.value || !end.value) return;
+    const base = { ...draft(), payMonth: undefined };
+    const months = possiblePayMonths(base, loadWorkplaces());
+    if (months.length <= 1) return;
+    // 前に選んだ月がなければ、真ん中あたりの日で働いたときの月を最初に選んでおく
+    let selected = months.includes(chosenPayMonth) ? chosenPayMonth : "";
+    if (!selected) {
+      const s = tentativeShifts(base, loadWorkplaces())[0];
+      selected = s ? s.payDate.slice(0, 7) : months[0];
+    }
+    payMonth.textContent = "";
+    for (const m of months) payMonth.append(option(m, monthName(parseDate(`${m}-01`))));
+    payMonth.value = selected;
+    payMonthField.hidden = false;
+  };
+
   // 働く時間と給料の見込みを表示する
   const update = () => {
     preview.textContent = "";
@@ -305,9 +334,10 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     saveTentative.hidden = !tentativeAllowed || past;
     if (!start.value || !end.value) return;
 
-    // 1回分の給料（予定を押した画面と同じ計算・同じ表示。日付が未定なら、その月の1日として計算した目安）
-    const t = draft();
     const isCount = isTentativeMode && kind === "count";
+    refreshPayMonths(isCount);
+    // 1回分の給料（予定を押した画面と同じ計算・同じ表示。日付が未定なら、仮の日付で計算した目安）
+    const t = draft();
     if (isCount ? !month.value : !date.value) return;
     const shift = isCount ? countSampleShift(t, loadWorkplaces()) : tentativeToShift(t, loadWorkplaces());
     if (!shift) return;
