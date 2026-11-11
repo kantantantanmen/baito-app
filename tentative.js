@@ -117,27 +117,28 @@ function countSampleShift(t, workplaces) {
 }
 
 // カレンダーの下の「仮シフト」の欄（表示中の月の分）
+// 日付が決まっている仮シフトはカレンダーのマスに出るので、ここには日付が未定のものだけを並べる
 //   onOpen(t)：仮シフトを押したとき、onAdd()：「＋ 仮シフト」を押したとき
 function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
   container.textContent = "";
   const key = monthKey(viewMonth);
-  const list = loadTentatives().filter(t => (isCountTentative(t) ? t.month : t.date.slice(0, 7)) === key);
+  const list = loadTentatives().filter(t => isCountTentative(t) && t.month === key);
 
   const head = el("div", "tentative-head");
   const addButton = el("button", "", "＋ 仮シフト");
   addButton.onclick = onAdd;
-  head.append(el("h3", "", `${monthName(viewMonth)}の仮シフト`), addButton);
+  head.append(el("h3", "", `${monthName(viewMonth)}の日付未定の仮シフト`), addButton);
   container.append(
     head,
     el("p", "muted small",
-      "まだ Google カレンダーに入れていない、入るつもりのシフトです。" +
+      "仮シフト：まだ Google カレンダーに入れていない、入るつもりのシフトです。" +
       "「来月の収入（予定）」以外の計算（今月の見込み・上限・集計・予定設定）に、カレンダーのシフトと一緒に入ります。" +
-      "日付が過ぎた仮シフトは数えません。シフトが決まったら、押して「Google カレンダーに追加」を選ぶと、仮シフトは消えてカレンダーの予定になります。" +
-      "日付がまだ決まっていないときは、日付の「未定」にチェックすると、月だけで登録できます（その月の残りの日の真ん中あたりで計算します）。"),
+      "日付が決まっている仮シフトは、カレンダーに点線の枠で出ます（押すと直す・削除・Google カレンダーに追加ができます。日付が過ぎたものは数えません）。" +
+      "ここには、日付の「未定」にチェックして月だけで登録したものが出ます（その月の残りの日の真ん中あたりで計算します）。"),
   );
 
   if (list.length === 0) {
-    container.append(el("p", "muted small", "この月の仮シフトはありません。「＋ 仮シフト」から追加できます。"));
+    container.append(el("p", "muted small", "この月の日付未定の仮シフトはありません。「＋ 仮シフト」から追加できます。"));
     return;
   }
 
