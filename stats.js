@@ -56,7 +56,10 @@ function statsPriorityToggle(priority, onChange) {
     };
     group.append(button);
   }
-  box.append(group, el("p", "muted small priority-now", priority === "plan"
+  box.append(group,
+    el("p", "small priority-use",
+      "カレンダー優先：今入れたシフトだと平均はどうなるか　／　予定設定優先：計画どおりに働いたら平均はどうなるか"),
+    el("p", "muted small priority-now", priority === "plan"
     ? "予定設定優先：予定設定に入力がある月はその額（一部確定していても）。入力がない月はカレンダー＋仮シフト。"
     : "カレンダー優先：カレンダー＋仮シフトから計算した額（確定したバイト先は確定額）。シフトがない月だけ予定設定。"));
   return box;
@@ -133,6 +136,8 @@ function renderStats(container, ctx) {
   const yearSection = el("section", "settings-section");
   yearSection.append(
     el("h3", "", `${year}年の収入（1〜12月に振り込まれる分）`),
+    el("p", "small priority-use",
+      "カレンダー優先：今入れたシフトだと年の収入はどうなるか　／　予定設定優先：計画どおりに働いたら年の収入はどうなるか"),
     el("p", "muted",
       "確定のみ：確定した金額だけ（自動確定・今月の見込みを含む）。カレンダー優先：確定したバイト先は確定額、ほかはカレンダー＋仮シフト（どちらもない月は予定設定）。" +
       "予定設定優先：予定設定に入力がある月は一部確定していても予定設定、入力がない月はカレンダー優先と同じ。" +

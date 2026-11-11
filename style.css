@@ -151,6 +151,7 @@ tr.ow-bottom td { border-bottom: 2px solid #d93025; }
 .plan-table tr.past input { color: var(--muted); }
 
 .row.dim { color: var(--muted); }
+.priority-use { margin: 6px 0 0; font-weight: 600; } /* それぞれ何を知りたいときに使うか */
 .priority-now { margin: 4px 0 0; }   /* 集計の切り替えの下の「今選んでいる方」の説明 */
 /* 予定設定の画面：来月から先の月で、予定設定ではなくシフトの額を使うときの一言 */
 .used-note { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
