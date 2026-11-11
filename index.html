@@ -33,11 +33,14 @@
     <button id="add-shift" aria-label="シフトを追加">＋<span class="wide-only"> シフト</span></button>
     <!-- スマホだけ：右上の給料袋。押すと右から収入の集計が出る -->
     <button id="summary-toggle" class="summary-toggle" aria-label="収入を見る">
-      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor"
+      <!-- ¥ の入った黄色い袋（きらきら付き） -->
+      <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true" stroke="#4a3b4f"
            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M5 7h14v13H5z"/>
-        <path d="M5 7l3-3h8l3 3"/>
-        <path d="M9.5 10.5l2.5 3.5 2.5-3.5M12 14v4M9.8 15.3h4.4M9.8 17h4.4"/>
+        <path d="M10.5 3.5h10l-2.6 6h-4.8z" fill="#f6d96b"/>
+        <path d="M12.5 12C7 14.5 4.5 19.5 5.2 24c.7 4 4.6 5.8 10.8 5.8S26.1 28 26.8 24c.7-4.5-1.8-9.5-7.3-12z" fill="#f6d96b"/>
+        <rect x="11" y="9" width="10" height="3.2" rx="1.4" fill="#7a80a8"/>
+        <path d="M13 16.5l3 4 3-4M16 20.5v6M13.6 22h4.8M13.6 24.6h4.8" fill="none"/>
+        <path d="M27 3.5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" fill="#f6d96b" stroke-width="1.2"/>
       </svg>
     </button>
     <button id="login">Google でログイン</button>
