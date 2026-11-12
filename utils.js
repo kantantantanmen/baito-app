@@ -86,14 +86,17 @@ function timeInput(value) {
 // current：今入っている時間 [{ start, end }]、defaults：シフト時間設定のその曜日の時間
 // ・シフト時間設定の時間のうち、まだ入っていないものがあれば、それ（早いほうから）
 // ・なければ、一番遅い時間の終わりの1時間後から2時間（夜中の0時を越えるときは空）
-function nextTimeRange(current, defaults) {
+//   after を渡したときは、一番遅い時間ではなく after（押したシフトの時間）の終わりの1時間後から2時間
+function nextTimeRange(current, defaults, after) {
   const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
   const toText = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   const filled = current.filter(t => t.start && t.end);
   const missing = defaults.filter(d => !filled.some(t => t.start === d.start && t.end === d.end));
   if (missing.length > 0) return { ...missing[0] };
   if (filled.length === 0) return { start: "", end: "" };
-  const last = [...filled].sort((a, b) => a.start.localeCompare(b.start))[filled.length - 1];
+  const last = after && after.start && after.end
+    ? after
+    : [...filled].sort((a, b) => a.start.localeCompare(b.start))[filled.length - 1];
   let endMin = toMin(last.end);
   if (endMin <= toMin(last.start)) endMin += 24 * 60; // 夜勤で次の日に終わる
   const from = endMin + 60;

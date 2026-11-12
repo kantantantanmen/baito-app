@@ -177,8 +177,12 @@ function renderSummary(container, ctx) {
   container.textContent = "";
 
   // ---------- 1. 今月の収入 ----------
+  // 合計の下に、3か月平均の計算に入れる額（平均外のバイト先の分を除く。集計の月平均の表の「収入」と同じ）
   const box0 = incomeBox(`${monthName(m0)}の収入`, `${monthName(m0)}に振り込まれる給料`, income, m0, info(m0), "this",
-                         [], tentativesFor(ctx.activeTentatives, m0), "（上の金額に入っています）");
+                         [["うち平均に入る額", formatYen(avgValue(m0)), "ref"]],
+                         tentativesFor(ctx.activeTentatives, m0), "（上の金額に入っています）",
+                         "「うち平均に入る額」は、合計のうち3か月平均の計算に入れる額です（平均外のバイト先の分は入れません）。" +
+                         "集計の月平均の表の「収入」（カレンダー優先）と同じ額です。");
   if (unmatched > 0) {
     box0.appendChild(el("p", "note",
       `バイト先に当てはまらない時間つきの予定が${monthName(m0)}に${unmatched}件あります。シフトなら「バイト先設定」でバイト先を登録してください。`));

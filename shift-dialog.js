@@ -144,9 +144,15 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
     const current = timeRows.map(r => ({ start: r.start.value, end: r.end.value }));
     const base = baseShift();
     const defaults = base ? defaultTimesFor(base.place, dayInput.value || dateKey(start)) : [];
-    const next = nextTimeRange(current, defaults);
+    // 決めた時間が入り切っているときは、押したシフトの終わりの1時間後から2時間
+    // （例：20:15 に終わるシフトを押したなら 21:15〜23:15）
+    const pressed = timeRows.find(r => r.orig === item);
+    const after = pressed ? { start: pressed.start.value, end: pressed.end.value } : null;
+    const next = nextTimeRange(current, defaults, after);
     addRowFor(null, next.start, next.end);
-    sortTimeInputs(timeRows); // 早い時間が時間1になるように並べ直す
+    // 早い時間が時間1になるように、行ごと並べ直す（時間を入れ替えると、登録済みの予定の時間まで変わってしまうため）
+    timeRows.sort((a, b) => (a.start.value || "99").localeCompare(b.start.value || "99"));
+    for (const r of timeRows) timeBox.append(r.row);
     renumberTimes();
     update();
   };
