@@ -38,7 +38,10 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   const tentative = options.tentative || null;
   const onSaved = options.onSaved || (() => {});
   const isTentativeMode = options.mode === "tentative" || !!tentative;
-  const dialogTitle = tentative ? "仮シフト" : isTentativeMode ? "仮シフトを追加" : "シフトを追加";
+  const groupCount = tentative && isCountTentative(tentative) ? Number(tentative.count) || 1 : 1;
+  const dialogTitle = tentative
+    ? (groupCount > 1 ? `仮シフト（× ${groupCount}回のうち1回）` : "仮シフト")
+    : isTentativeMode ? "仮シフトを追加" : "シフトを追加";
   const workplaces = loadWorkplaces().filter(w => w.name);
   if (workplaces.length === 0) {
     showDialogMessage(dialogTitle, "先に「バイト先設定」でバイト先を登録してください。");
@@ -91,8 +94,12 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   month.type = "month";
   month.min = thisMonth; // 過ぎた月には作れない
   month.value = tentative && tentative.month ? tentative.month : (day.slice(0, 7) < thisMonth ? thisMonth : day.slice(0, 7));
-  // 回数は1回（前のしくみで何回分かまとめて入れた仮シフトは、その回数のまま残す）
-  const keptCount = tentative && isCountTentative(tentative) ? Math.max(1, Number(tentative.count) || 1) : 1;
+  // 回数：同じ内容の日付未定の仮シフトを、何回分まとめて入れるか（「× 3 回」）
+  // 何回分かまとめたものの1回分を開いたときは、その1回分を直すので1から始める
+  const countInput = numberInput(1, 1);
+  countInput.step = 1;
+  countInput.classList.add("count-input");
+  const countValue = () => Math.max(1, Math.floor(Number(countInput.value) || 1));
 
   let firstPlace = workplaces.some(w => w.name === last.place) ? last.place : workplaces[0].name;
   if (tentative && workplaces.some(w => w.name === tentative.place)) firstPlace = tentative.place;
@@ -272,15 +279,16 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     chosenPayMonth = payMonth.value;
     update();
   };
+  const countField = field("回数", "×", countInput, "回");
   const countNote = el("p", "muted small",
     "日付が決まったら「未定」を外して日付を入れてください。" +
-    (tentative ? "「シフトとして追加」もできるようになります。" : "") +
-    (keptCount > 1 ? `（この仮シフトは前のしくみで入れた${keptCount}回分です）` : ""));
+    (tentative ? "「シフトとして追加」もできるようになります。" : ""));
 
   // 項目の順番は、予定を押した画面と同じ（日付 → バイト先 → 役職 → 時間 → 休憩 → ボーナス → メモ）
   form.append(
     dateField,
     monthField,
+    countField,
     payMonthField,
     field("バイト先", place),
     roleField,
@@ -310,7 +318,9 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     const del = el("button", "danger", "削除");
     del.type = "button";
     del.onclick = () => {
-      removeTentative(tentative.id);
+      // 何回分かまとめたものの1回分なら、1回分だけ減らす
+      if (splitFrom && restCount > 0) finishSplit();
+      else removeTentative(tentative.id);
       shiftDialog.close();
       onSaved();
     };
@@ -318,14 +328,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   }
   buttons.append(cancel);
 
-  // 未定の仮シフトを開いて日付を入れたとき：その日の仮シフト（または予定）になる
-  // （前のしくみで何回分かまとめて入れたものは、1回分だけ取り出して残りは未定のまま残す）
+  // 日付未定の仮シフトを開いたとき：日付を入れると、その日の仮シフト（または予定）になる
+  // 何回分かまとめたもの（× 3回 など）は、開いた1回分だけを直す・日付を入れる・消す。残りはそのまま残る
   const splitFrom = tentative && isCountTentative(tentative) ? tentative : null;
   const restCount = splitFrom ? Math.max(0, (Number(splitFrom.count) || 1) - 1) : 0;
-  const splitNote = el("p", "note small", restCount > 0
-    ? `この日の1回分を、日付ありの仮シフト（または Google カレンダーの予定）にします。` +
-      `残りの${restCount}回は、${monthName(parseDate(`${splitFrom.month}-01`))}中・未定のまま残ります。`
-    : "");
+  const splitNote = el("p", "note small");
   // 保存した仮シフトを開いたのに「Google カレンダーに追加」が出せないとき、その理由とやること
   //   ・日付が未定：「未定」を外して日付を入れる
   //   ・ログインしていない（通行証は1時間で切れる）：ログインしてから開き直す
@@ -350,6 +357,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     date.disabled = isCount; // 未定のときは日付を入れない（欄は「未定」のチェックのために残す）
     if (isCount && date.value) month.value = date.value.slice(0, 7) < thisMonth ? thisMonth : date.value.slice(0, 7);
     monthField.hidden = !isCount;
+    countField.hidden = !isCount;
     countNote.hidden = !isCount;
     // 「＋ 時間」は時給のバイト先で、日付が決まっているときだけ
     const canAddTime = isHourly() && !isCount;
@@ -357,8 +365,14 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     extraBox.hidden = !canAddTime;
     renumberTimes();
     add.hidden = !canAddToGoogle || isCount; // 日にちがないので Google カレンダーには入れられない
-    // 未定の仮シフトの日付が決まったとき：何回分のうち1回だけ日付ありにするかを書く（前のしくみの分だけ）
-    splitNote.hidden = !(splitFrom && !isCount && restCount > 0);
+    // 何回分かまとめたものの1回分を開いたとき：何をするかを書く
+    splitNote.hidden = !(splitFrom && restCount > 0);
+    if (splitFrom && restCount > 0) {
+      const rest = `残りの${restCount}回は、${monthName(parseDate(`${splitFrom.month}-01`))}中・日付未定のまま残ります。`;
+      splitNote.textContent = isCount
+        ? `× ${splitFrom.count}回のうちの1回分を直します（回数を増やすと、その回数分になります）。${rest}`
+        : `この日の1回分を、日付ありの仮シフト（または Google カレンダーの予定）にします。${rest}`;
+    }
 
     googleHint.textContent = "";
     // （日付が未定のときは、上の「日付が決まったら…」の一言で伝える）
@@ -398,7 +412,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     if (kind === "count") {
       t.kind = "count";
       t.month = month.value;
-      t.count = keptCount;
+      t.count = countValue();
       if (!payMonthField.hidden && payMonth.value) t.payMonth = payMonth.value;
     } else {
       t.date = date.value;
@@ -455,7 +469,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   // 「振り込まれる月」の選択肢を作り直す。働く日によって振り込まれる月が変わるときだけ出す
   const refreshPayMonths = (isCount) => {
     payMonthField.hidden = true;
-    if (!isCount || !month.value || !start.value || !end.value) return;
+    // 何回分かまとめたものは、その月の残りの日に割り振るので選ばない（1回分のときだけ選ぶ）
+    if (!isCount || !month.value || !start.value || !end.value || countValue() > 1) return;
     const base = { ...draft(), payMonth: undefined };
     const months = possiblePayMonths(base, loadWorkplaces());
     if (months.length <= 1) return;
@@ -508,7 +523,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     if (isCount) {
       // 日付が未定：振り込まれる月（日付がないので、日ではなく月だけ出す）
       const list = tentativeShifts(t, loadWorkplaces());
-      if (keptCount > 1) addRow(preview, `${keptCount}回分の合計`, formatYen(list.reduce((s, x) => s + x.pay, 0)), "strong");
+      if (countValue() > 1) addRow(preview, `${countValue()}回分の合計`, formatYen(list.reduce((s, x) => s + x.pay, 0)), "strong");
       const months = [...new Set(list.map(s => s.payDate.slice(0, 7)))].sort();
       if (months.length > 0) {
         addRow(preview, "振り込まれる月", months.map(m => monthName(parseDate(`${m}-01`))).join("・"));
@@ -524,7 +539,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     update();
   };
   role.onchange = update;
-  for (const input of [date, month, start, end, breakInput, bonus, bonusNote]) input.oninput = update;
+  for (const input of [date, month, start, end, breakInput, bonus, bonusNote, countInput]) input.oninput = update;
   // 仮シフトの画面で日付を空にしたら、「未定」にする
   date.oninput = () => {
     if (isTentativeMode && !date.value) {
@@ -616,8 +631,9 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       error.textContent = p;
       return;
     }
-    if (splitFrom && kind === "date") {
-      // 未定の仮シフトの1回分に日付が決まった：日付ありの仮シフトを新しく作り、元は1回減らす
+    if (splitFrom && (kind === "date" || restCount > 0)) {
+      // 日付未定の仮シフトの1回分に日付が決まった、または何回分かまとめたものの1回分を直した：
+      // その1回分を新しい仮シフトにして、元は1回減らす（0回なら消す）
       upsertTentative({ ...draft(), id: undefined });
       finishSplit();
     } else {

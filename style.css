@@ -499,6 +499,16 @@ button.day-row:hover { background: #f1f3f4; }
 .tentative-when { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tentative-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tentative-row .value { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* 何回分かまとめた日付未定の仮シフト：「× 3回」と ▼▲、分けて出した1回ずつは少し右に寄せる */
+.tentative-times { white-space: nowrap; font-weight: 600; }
+/* 入りきらないときは日付・時間のほうを折り返して、バイト先・回数・金額・▼ は必ず出す */
+.tentative-row.group .tentative-when { white-space: normal; flex: 1 1 auto; min-width: 0; }
+.tentative-row.group .tentative-what { flex: 0 0 auto; }
+.tentative-row.group > * { flex-shrink: 0; }
+.tentative-row.group > .tentative-when { flex-shrink: 1; }
+.tentative-toggle { font-size: 0.75rem; opacity: 0.7; }
+.tentative-row.unit { margin-left: 16px; width: calc(100% - 16px); padding-top: 6px; padding-bottom: 6px; font-size: 0.9em; }
+.count-input { width: 64px !important; }
 
 
 /* ===== 右：集計パネル ===== */

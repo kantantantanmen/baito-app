@@ -184,6 +184,7 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
     "日付が過ぎた仮シフト（日付が未定のものは、入る予定だった月が過ぎたもの）は薄い赤になります。" +
     "扶養を超えないように、働いたとして計算に入れたままにしています。働いたなら「シフトとして追加」、働かなかったなら「削除」をしてください。",
     "ここには、日付を「未定」にして月だけで登録したものが出ます（その月の残りの日の真ん中あたりで働いたとして計算します）。",
+    "同じ内容のものは「回数」で何回分かまとめて入れられます（「× 3回」）。押すと1回ずつに分けて出し、▲ で元に戻ります。1回ずつを押すと、その1回分だけを直せます。",
     "週払いなどで、働く日によって振り込まれる月が変わるときは、仮シフトの画面で「振り込まれる月」を選びます。",
     "Google カレンダーに同じ日・同じバイト先・重なる時間のシフトが入ると、その仮シフトは自動で消えます。",
   ]);
@@ -202,20 +203,49 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
     const counted = isCountTentative(t);
     const shifts = tentativeShifts(t, workplaces);
     const found = counted ? !!countSampleShift(t, workplaces) : !!tentativeToShift(t, workplaces);
-    const row = el("button", `tentative-row${past ? " past" : ""}${counted ? " count" : ""}`);
-    row.type = "button";
-    let amount = "バイト先が見つかりません";
-    if (found) amount = formatYen(shifts.reduce((s, x) => s + x.pay, 0)) + (past ? "（働いた扱い）" : "");
-    // 日付が未定のものは「12月中・日付未定 17:00〜22:00」（前のしくみの何回分かのものは「× 3回」も付ける）
-    const when = counted
-      ? `${monthName(parseDate(`${t.month}-01`))}中・日付未定 ${t.start}〜${t.end}${Number(t.count) > 1 ? ` × ${t.count}回` : ""}`
+    const times = counted ? Math.max(1, Number(t.count) || 1) : 1;
+    const many = times > 1;
+    const open = many && expandedTentatives.has(t.id);
+    const what = t.role ? `${t.place} ${t.role}` : t.place;
+    const whenText = counted
+      ? `${monthName(parseDate(`${t.month}-01`))}中・日付未定 ${t.start}〜${t.end}`
       : `${shortDate(t.date)} ${t.start}〜${t.end}`;
-    row.append(
-      el("span", "tentative-when", when),
-      el("span", "tentative-what", t.role ? `${t.place} ${t.role}` : t.place),
-      el("span", "value", amount),
-    );
-    row.onclick = () => onOpen(t);
+    const amountOf = (list) => (found ? formatYen(list.reduce((s, x) => s + x.pay, 0)) + (past ? "（働いた扱い）" : "")
+      : "バイト先が見つかりません");
+
+    // 1行目：「12月中・日付未定 17:00〜22:00　たいら　× 3回　18,000円」
+    // 何回分かまとめたものは、押すと1回ずつに分けて出し（▼）、▲ を押すと元に戻す
+    const row = el("button", `tentative-row${past ? " past" : ""}${counted ? " count" : ""}${many ? " group" : ""}`);
+    row.type = "button";
+    row.append(el("span", "tentative-when", whenText), el("span", "tentative-what", what));
+    if (many) row.append(el("span", "tentative-times", `× ${times}回`));
+    row.append(el("span", "value", amountOf(shifts)));
+    if (many) row.append(el("span", "tentative-toggle", open ? "▲" : "▼"));
+    row.onclick = () => {
+      if (!many) return onOpen(t);
+      if (open) expandedTentatives.delete(t.id);
+      else expandedTentatives.add(t.id);
+      renderTentatives(container, viewMonth, workplaces, onOpen, onAdd);
+    };
     container.append(row);
+
+    // 分けて出した1回ずつ。押すと、その1回分を直す画面が開く（日付を入れる・消すなども1回分だけ）
+    if (open) {
+      const one = tentativeShifts({ ...t, count: 1 }, workplaces);
+      for (let i = 0; i < times; i++) {
+        const unit = el("button", `tentative-row unit${past ? " past" : ""}`);
+        unit.type = "button";
+        unit.append(
+          el("span", "tentative-when", `${i + 1}回目　${t.start}〜${t.end}`),
+          el("span", "tentative-what", what),
+          el("span", "value", amountOf(one)),
+        );
+        unit.onclick = () => onOpen(t);
+        container.append(unit);
+      }
+    }
   }
 }
+
+// 1回ずつに分けて出している、何回分かまとめた仮シフト（id の集まり。画面を作り直しても開いたままにする）
+const expandedTentatives = new Set();

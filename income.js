@@ -310,7 +310,7 @@ function monthRows(income, month) {
 // month（収入の月 "2026-12"）の金額と、その出どころを返す
 //   "calendar"（カレンダー優先）：
 //       確定したバイト先は確定額、確定していないバイト先はカレンダー（＋仮シフト）から計算した額。
-//       どちらもない月だけ予定金額
+//       確定もカレンダーのシフトもない月（仮シフトしか入っていない月も）だけ予定金額（入力があれば）
 //   "plan"（予定金額優先）：
 //       予定金額に入力があれば、一部確定していても予定金額の金額。入力がない月はカレンダー優先と同じ
 //   全部確定した月と今月までの月は、どちらでも確定額（予定金額は使わない）
@@ -336,9 +336,11 @@ function monthInfo(income, plans, month, onlyAverage = false, priority = "calend
   const plan = planFor(plans, month);
 
   if (plan != null && !allConfirmed && month > monthKey(new Date())) {
-    // 予定金額優先なら一部確定があっても予定金額。カレンダー優先なら、確定もカレンダーもない月だけ予定金額
+    // 予定金額優先なら一部確定があっても予定金額。
+    // カレンダー優先なら、確定もカレンダーのシフトもない月（仮シフトしか入っていない月も）だけ予定金額
     // 全部確定した月と、今月までの月（確定・自動確定・見込みを使う）は、ここに来ない
-    const usePlan = priority === "plan" || (!hasConfirmed && rows.length === 0);
+    const calendarRows = rows.filter(r => r.count > r.tentativeCount); // カレンダーのシフトがあるバイト先
+    const usePlan = priority === "plan" || (!hasConfirmed && calendarRows.length === 0);
     if (usePlan) {
       return { value: plan, source: "plan", confirmed: 0, hasConfirmed: false, allConfirmed: false,
                autoCount: 0, manualCount: 0, expectCount: 0, expected: 0 };
