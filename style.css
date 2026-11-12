@@ -369,6 +369,12 @@ button.day-row:hover { background: #f1f3f4; }
 .day-row.past { background: #fdecec; border-color: #e6a3a3; color: #b3261e; } /* 日付が過ぎた仮シフト：薄い赤 */
 .day-row .value { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .time-range { display: inline-flex; align-items: center; gap: 4px; }
+/* 1日に同じバイト先のシフトが2つ以上：時間を「｜」で区切って横に並べ、それぞれ押せる */
+.day-times { display: inline-flex; flex-wrap: wrap; align-items: center; white-space: nowrap; }
+.time-seg { border: none; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+            text-decoration: underline dotted; text-underline-offset: 3px; }
+.time-sep { margin: 0 4px; opacity: 0.5; }
+.time-prefix { margin-right: 0.3em; }
 
 /* 予定1件分 */
 .chip {

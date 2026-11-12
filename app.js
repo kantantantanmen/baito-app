@@ -355,25 +355,43 @@ function renderDayList() {
     return;
   }
   const hhmm = (d) => d.toTimeString().slice(0, 5);
-  for (const item of list) {
+  const timeOf = (event) => event.start.date ? "終日"
+    : `${hhmm(new Date(event.start.dateTime))}〜${hhmm(new Date(event.end.dateTime))}`;
+  const open = (item) => (item.tentative ? openTentative(item.tentative) : openShiftDialog(item, renderAll, loadMonth));
+  // 同じバイト先のシフトが2つ以上ある日は、カレンダーと同じく1行にまとめ、時間を区切って横に並べる
+  for (const group of groupSameShifts(list)) {
+    const item = group[0];
     const { event, shift, tentative } = item;
     const allDay = !!event.start.date;
-    const row = el(allDay ? "div" : "button",
-      `day-row${tentative ? " tentative-item" : shift ? " shift" : ""}${tentative && isPastTentative(tentative) ? " past" : ""}`);
-    const time = allDay ? "終日" : `${hhmm(new Date(event.start.dateTime))}〜${hhmm(new Date(event.end.dateTime))}`;
+    const multi = group.length > 1;
+    const past = tentative && isPastTentative(tentative);
+    const row = el(allDay || multi ? "div" : "button",
+      `day-row${tentative ? " tentative-item" : shift ? " shift" : ""}${past ? " past" : ""}`);
     const name = shift
       ? [shift.place, shift.role].filter(Boolean).join(" ")
       : event.summary || "（タイトルなし）";
     let amount = "";
-    if (shift) amount = formatYen(shift.pay) + (tentative && isPastTentative(tentative) ? "（働いた扱い）" : "");
-    row.append(
-      el("span", "tentative-when", tentative ? `仮 ${time}` : time),
-      el("span", "tentative-what", name),
-      el("span", "value", amount),
-    );
-    if (!allDay) {
+    if (shift) amount = formatYen(group.reduce((s, x) => s + x.shift.pay, 0)) + (past ? "（働いた扱い）" : "");
+
+    const when = el("span", "tentative-when");
+    if (tentative) when.append(el("span", "time-prefix", "仮"));
+    if (multi) {
+      // 時間ごとに押せる（押した時間のシフトを直す画面が開く）
+      when.classList.add("day-times");
+      group.forEach((x, i) => {
+        if (i > 0) when.append(el("span", "time-sep", "｜"));
+        const seg = el("button", "time-seg", timeOf(x.event));
+        seg.type = "button";
+        seg.onclick = () => open(x);
+        when.append(seg);
+      });
+    } else {
+      when.append(timeOf(event));
+    }
+    row.append(when, el("span", "tentative-what", name), el("span", "value", amount));
+    if (!allDay && !multi) {
       row.type = "button";
-      row.onclick = () => (tentative ? openTentative(tentative) : openShiftDialog(item, renderAll, loadMonth));
+      row.onclick = () => open(item);
     }
     dayListView.append(row);
   }
