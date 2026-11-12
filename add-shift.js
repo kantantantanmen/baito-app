@@ -128,6 +128,61 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     end.value = tentative.end;
   }
 
+  // 同じ日に2回目・3回目のシフトがあるとき：「＋ 時間」で時間の欄を足す（時給のバイト先で、日付が決まっているときだけ）
+  // 足した時間は、それぞれ別のシフト（Google カレンダーの予定・仮シフト）として保存する
+  const extraTimes = []; // [{ start, end, row }]
+  const extraBox = el("div");
+  const addTimeButton = el("button", "add-time", "＋ 時間");
+  addTimeButton.type = "button";
+  const addTimeField = field("", addTimeButton);
+  const renumberTimes = () => extraTimes.forEach((x, i) => {
+    x.label.textContent = `時間${i + 2}`;
+  });
+  addTimeButton.onclick = () => {
+    // 前の時間の1時間あとから、同じ長さで入れておく（例：10:00〜13:00 のあとなら 14:00〜17:00）
+    // 夜中の0時を越えてしまうときは、終わりを空にしておく
+    const prev = extraTimes.length > 0 ? extraTimes[extraTimes.length - 1] : { start, end };
+    const s = timeInput("");
+    const e = timeInput("");
+    if (prev.start.value && prev.end.value) {
+      const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+      const toText = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+      const len = toMin(prev.end.value) - toMin(prev.start.value);
+      const from = toMin(prev.end.value) + 60;
+      if (len > 0 && from < 24 * 60) {
+        s.value = toText(from);
+        if (from + len < 24 * 60) e.value = toText(from + len);
+      }
+    }
+    // 消す × は、左の「時間2」の横に置く（時間の欄が折り返さないように）
+    const remove = el("button", "icon-btn remove-time", "×");
+    remove.type = "button";
+    remove.setAttribute("aria-label", "この時間を消す");
+    const row = field("", s, "〜", e);
+    const labelBox = row.querySelector(".field-label");
+    const label = el("span");
+    labelBox.append(label, remove);
+    const x = { start: s, end: e, row, label };
+    remove.onclick = () => {
+      extraTimes.splice(extraTimes.indexOf(x), 1);
+      row.remove();
+      renumberTimes();
+      update();
+    };
+    s.oninput = update;
+    e.oninput = update;
+    extraTimes.push(x);
+    extraBox.append(row);
+    renumberTimes();
+    update();
+  };
+  // 今使う足した時間（時給でないときや、日付が未定のときは使わない）
+  const isHourly = () => {
+    const wp = workplaces.find(w => w.name === place.value);
+    return !wp || wp.payType !== "daily";
+  };
+  const activeExtras = () => (isHourly() && !(isTentativeMode && kind === "count")) ? extraTimes : [];
+
   // 休憩・ボーナス・メモ（予定を押した画面と同じ。Google カレンダーに追加したら、その予定の設定として残す）
   const breakInput = numberInput(tentative && tentative.breakMin !== undefined ? tentative.breakMin : "", 0);
   breakInput.step = 5;
@@ -170,6 +225,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     monthField,
     payMonthField,
     field("時間", start, "〜", end),
+    extraBox,
+    addTimeField,
     field("バイト先", place),
     roleField,
     field("休憩", breakInput, "分", breakHint),
@@ -236,6 +293,10 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     if (isCount && date.value) month.value = date.value.slice(0, 7) < thisMonth ? thisMonth : date.value.slice(0, 7);
     monthField.hidden = !isCount;
     countNote.hidden = !isCount;
+    // 「＋ 時間」は時給のバイト先で、日付が決まっているときだけ
+    const canAddTime = isHourly() && !isCount;
+    addTimeField.hidden = !canAddTime;
+    extraBox.hidden = !canAddTime;
     add.hidden = !canAddToGoogle || isCount; // 日にちがないので Google カレンダーには入れられない
     // 未定の仮シフトの日付が決まったとき：何回分のうち1回だけ日付ありにするかを書く（前のしくみの分だけ）
     splitNote.hidden = !(splitFrom && !isCount && restCount > 0);
@@ -251,10 +312,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   };
 
   // 入力内容から、Google カレンダーに送る予定を作る
-  const buildEvent = () => {
+  // s・e：時間（足した時間の分を作るときに渡す。なければ1つ目の時間）
+  const buildEvent = (s = start.value, e = end.value) => {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone; // 例 "Asia/Tokyo"
     let endDay = date.value;
-    if (end.value <= start.value) {
+    if (e <= s) {
       // 終わりが始まりより前なら、次の日に終わる（夜勤など）
       const d = parseDate(date.value);
       d.setDate(d.getDate() + 1);
@@ -263,8 +325,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     return {
       // 予定名は「バイト先 役職」。役職名が入っていれば、あとで自動でその役職として計算される
       summary: role.value ? `${place.value} ${role.value}` : place.value,
-      start: { dateTime: `${date.value}T${start.value}:00`, timeZone },
-      end: { dateTime: `${endDay}T${end.value}:00`, timeZone },
+      start: { dateTime: `${date.value}T${s}:00`, timeZone },
+      end: { dateTime: `${endDay}T${e}:00`, timeZone },
     };
   };
 
@@ -287,6 +349,15 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     if (bonusNote.value.trim()) t.bonusNote = bonusNote.value.trim();
     return t;
   };
+  // 足した時間の分の仮シフト（休憩は同じ。ボーナス・メモは1つ目の時間だけに付ける）
+  const extraDraft = (x) => {
+    const t = { ...draft(), id: undefined, start: x.start.value, end: x.end.value };
+    delete t.bonus;
+    delete t.bonusNote;
+    return t;
+  };
+  // 足した時間の分の、予定ごとの設定（休憩だけ）
+  const extraEdit = () => (breakInput.value !== "" ? { breakMin: Number(breakInput.value) } : null);
 
   // 入力が足りないか、過ぎていて仮シフトにできないか（理由の文字。問題なければ ""）
   const problem = () => {
@@ -297,9 +368,21 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       return "";
     }
     if (!date.value) return "日付を入れてください。";
+    const extras = activeExtras();
+    if (extras.some(x => !x.start.value || !x.end.value)) return "足した時間も入れてください。";
+    // 入れた時間どうしが重なっていないか（終わりが始まりより前なら次の日に終わる）
+    const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+    const ranges = [{ s: start.value, e: end.value }, ...extras.map(x => ({ s: x.start.value, e: x.end.value }))]
+      .map(r => ({ s: toMin(r.s), e: toMin(r.e) <= toMin(r.s) ? toMin(r.e) + 24 * 60 : toMin(r.e) }));
+    for (let i = 0; i < ranges.length; i++) {
+      for (let j = i + 1; j < ranges.length; j++) {
+        if (ranges[i].s < ranges[j].e && ranges[j].s < ranges[i].e) return "入れた時間どうしが重なっています。";
+      }
+    }
     // 仮シフト：同じ日・同じバイト先で時間が重なるシフトがもうカレンダーにあれば保存しない
     //（保存しても、シフトになった仮シフトとして自動で消えてしまうため）
-    if (tentativeAllowed && tentativesInCalendar([draft()], items.filter(x => x.shift), loadWorkplaces()).length > 0) {
+    if (tentativeAllowed &&
+        tentativesInCalendar([draft(), ...extras.map(extraDraft)], items.filter(x => x.shift), loadWorkplaces()).length > 0) {
       return "この時間にはもうシフトが入っています。";
     }
     if (tentativeAllowed && date.value < today) {
@@ -349,7 +432,9 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
 
     breakInput.placeholder = String(shift.autoBreak);
     breakHint.textContent = `空欄なら勤怠設定どおり（${formatHours(shift.autoBreak)}）`;
-    shiftPreviewRows(preview, shift);
+    // 時間を足したときは、上の内訳は「時間1」の分
+    const hasExtras = !isCount && activeExtras().some(x => x.start.value && x.end.value);
+    shiftPreviewRows(preview, shift, hasExtras ? "時間1の合計" : "合計");
 
     if (isCount) {
       // 日付が未定：振り込まれる月（日付がないので、日ではなく月だけ出す）
@@ -361,11 +446,25 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       }
     } else {
       addRow(preview, "振込予定日", shortDate(shift.payDate));
+      // 足した時間：1回ずつの給料と、全部の合計（上の内訳は1つ目の時間の分）
+      const extras = activeExtras().filter(x => x.start.value && x.end.value);
+      if (extras.length > 0) {
+        preview.append(el("hr", "preview-sep"));
+        let sum = shift.pay;
+        extras.forEach((x, i) => {
+          const s = tentativeToShift(extraDraft(x), loadWorkplaces());
+          if (!s) return;
+          sum += s.pay;
+          addRow(preview, `時間${i + 2}　${x.start.value}〜${x.end.value}`, formatYen(s.pay));
+        });
+        addRow(preview, `${extras.length + 1}回の合計`, formatYen(sum), "total big");
+      }
     }
   };
   place.onchange = () => {
     fillRoles();
     setTimes();
+    showKind(); // 日給のバイト先なら「＋ 時間」を隠す
     update();
   };
   role.onchange = update;
@@ -395,9 +494,28 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       error.textContent = "日付と時間を入れてください。";
       return;
     }
+    // 足した時間の入れ忘れ・重なりがあれば止める（ほかの注意は仮シフトのためのものなので、ここでは止めない）
+    const p = problem();
+    if (p === "足した時間も入れてください。" || p === "入れた時間どうしが重なっています。") {
+      error.textContent = p;
+      return;
+    }
     add.disabled = true;
     add.textContent = "追加中...";
     try {
+      // 足した時間は、それぞれ別の予定にする（休憩だけ同じ設定を付ける）
+      // 入れられた分は欄から消す（途中で失敗して押し直したときに、同じ予定を二重に作らない）
+      for (const x of [...activeExtras()]) {
+        const made = await createEvent(calendarId, buildEvent(x.start.value, x.end.value));
+        const ex = extraEdit();
+        if (made && made.id && ex) {
+          const all = loadEdits();
+          all[`${calendarId}|${made.id}`] = ex;
+          saveEdits(all);
+        }
+        extraTimes.splice(extraTimes.indexOf(x), 1);
+        x.row.remove();
+      }
       const created = await createEvent(calendarId, buildEvent());
       // 入れた休憩・ボーナス・メモは、予定を押した画面の設定として引き継ぐ
       if (created && created.id) {
@@ -440,6 +558,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     } else {
       upsertTentative(draft());
     }
+    // 足した時間は、それぞれ別の仮シフトにする
+    for (const x of activeExtras()) upsertTentative(extraDraft(x));
     remember();
     shiftDialog.close();
     onSaved();

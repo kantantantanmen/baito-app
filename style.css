@@ -525,6 +525,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
 }
 .dialog-preview p { margin: 0; font-size: 0.85rem; }
 .row.strong { font-weight: 600; }
+/* 「＋ 時間」（同じ日に2回目のシフトを足す）と、足した時間を消す × */
+.add-time { padding: 4px 12px; font-size: 0.85rem; color: var(--accent); border-color: var(--accent); }
+.remove-time { font-size: 1rem; padding: 0 4px; color: var(--muted); }
+.preview-sep { border: none; border-top: 1px solid var(--line); margin: 8px 0 4px; }
 .dialog-buttons { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
 /* 下のボタンは文字を少し小さくして、折り返さずに1行に収める */
 .dialog-buttons button { font-size: 0.85rem; padding: 6px 12px; white-space: nowrap; }
