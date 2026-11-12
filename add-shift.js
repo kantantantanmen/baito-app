@@ -168,7 +168,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   // シフト時間設定の時間でまだ入っていないもの、なければ一番遅い時間の1時間後から2時間）
   const addTimeRow = (values) => {
     if (!values) {
-      const current = [{ start: start.value, end: end.value },
+      // この画面の時間に加えて、その日にもう入っているシフト・仮シフトの時間も「入っている」として数える
+      const current = [...registeredTimes(), { start: start.value, end: end.value },
         ...extraTimes.map(x => ({ start: x.start.value, end: x.end.value }))];
       const defaults = isHourly() && kind === "date" ? defaultTimesFor(place.value, date.value) : [];
       values = nextTimeRange(current, defaults);
@@ -200,21 +201,37 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   // シフト時間設定で、このバイト先・この曜日の時間が決めてあれば入れる（時間1・時間2…）
   // 決めていなければ、前回そのバイト先で入れた時間（1つ目だけ）。開いた仮シフトを直すときは変えない
   // force：決めた時間がないときも前回の時間に戻す（バイト先を変えたとき）
+  // その日にもうシフト・仮シフトが入っているときは、その時間を除く。
+  // 決めた時間が全部もう入っていれば（または決めていなくても、その日にもうシフトがあれば）、
+  // 一番遅いシフトの終わりの1時間後から2時間を入れる
+  const registeredTimes = () => (kind === "date" ? existingTimesOn(place.value, date.value, tentative && tentative.id) : []);
   const applyDefaultTimes = (force) => {
     if (tentative) return;
-    const defaults = isHourly() && kind === "date" ? defaultTimesFor(place.value, date.value) : [];
-    if (defaults.length === 0) {
-      if (force) {
-        for (const x of extraTimes.splice(0)) x.row.remove();
+    const hourly = isHourly() && kind === "date";
+    const defaults = hourly ? defaultTimesFor(place.value, date.value) : [];
+    const registered = hourly ? registeredTimes() : [];
+    const same = (a, b) => a.start === b.start && a.end === b.end;
+    const left = defaults.filter(d => !registered.some(r => same(r, d)));
+    const clearExtras = () => { for (const x of extraTimes.splice(0)) x.row.remove(); };
+    if (left.length > 0) {
+      clearExtras();
+      start.value = left[0].start;
+      end.value = left[0].end;
+      for (const t of left.slice(1)) addTimeRow(t);
+    } else if (registered.length > 0) {
+      const next = nextTimeRange(registered, []);
+      if (next.start) {
+        clearExtras();
+        start.value = next.start;
+        end.value = next.end;
+      } else if (force) {
+        clearExtras();
         setTimes();
-        renumberTimes();
       }
-      return;
+    } else if (force) {
+      clearExtras();
+      setTimes();
     }
-    for (const x of extraTimes.splice(0)) x.row.remove();
-    start.value = defaults[0].start;
-    end.value = defaults[0].end;
-    for (const t of defaults.slice(1)) addTimeRow(t);
     renumberTimes();
   };
   // 今使う足した時間（時給でないときや、日付が未定のときは使わない）

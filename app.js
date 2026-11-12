@@ -635,6 +635,20 @@ function removeEventLocally(calId, eventId) {
   items = items.filter(x => !(x.cal.id === calId && x.event.id === eventId));
 }
 
+// その日・そのバイト先に、もう入っているシフトの時間（カレンダーのシフトと仮シフト）→ [{ start, end }]
+// exceptTentativeId：開いて直している仮シフトは数えない
+function existingTimesOn(place, day, exceptTentativeId) {
+  if (!place || !day) return [];
+  const hhmm = (d) => d.toTimeString().slice(0, 5);
+  const fromCalendar = items
+    .filter(x => x.shift && !x.event.start.date && x.shift.place === place && x.shift.day === day)
+    .map(x => ({ start: hhmm(new Date(x.event.start.dateTime)), end: hhmm(new Date(x.event.end.dateTime)) }));
+  const fromTentative = loadTentatives()
+    .filter(t => !isCountTentative(t) && t.date === day && t.place === place && t.id !== exceptTentativeId)
+    .map(t => ({ start: t.start, end: t.end }));
+  return [...fromCalendar, ...fromTentative];
+}
+
 // ===== 月の移動 =====
 // slide：指で滑らせたときの動き（"slide-left" か "slide-right"）
 function moveMonth(diff, slide = "") {
