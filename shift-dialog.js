@@ -90,7 +90,55 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
   const startInput = timeInput(hhmm(start));
   const endInput = timeInput(hhmm(end));
   dayInput.disabled = startInput.disabled = endInput.disabled = !canWrite;
-  form.append(field("日付", dayInput), field("時間", startInput, "〜", endInput));
+  const mainTimeField = field("時間", startInput, "〜", endInput);
+  mainTimeField.classList.add("time-row");
+
+  // 同じ日の2回目・3回目のシフト：「＋ 時間」で時間を足すと、「更新」で別の予定として Google カレンダーに入れる
+  // （時給のバイト先で、書き込めるカレンダーの予定だけ）
+  const extraTimes = []; // [{ start, end, row }]
+  const extraBox = el("div");
+  const addTimeButton = el("button", "add-time", "＋ 時間");
+  addTimeButton.type = "button";
+  const addTimeField = field("", addTimeButton);
+  const renumberTimes = () => {
+    mainTimeField.querySelector(".field-label").textContent = extraTimes.length > 0 ? "時間1" : "時間";
+    extraTimes.forEach((x, i) => { x.row.querySelector(".field-label").textContent = `時間${i + 2}`; });
+  };
+  addTimeButton.onclick = () => {
+    // 前の時間の1時間あとから、同じ長さで入れておく（夜中の0時を越えるときは終わりを空にする）
+    const prev = extraTimes.length > 0 ? extraTimes[extraTimes.length - 1] : { start: startInput, end: endInput };
+    const s = timeInput("");
+    const e = timeInput("");
+    const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+    const toText = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    if (prev.start.value && prev.end.value) {
+      const len = toMin(prev.end.value) - toMin(prev.start.value);
+      const from = toMin(prev.end.value) + 60;
+      if (len > 0 && from < 24 * 60) {
+        s.value = toText(from);
+        if (from + len < 24 * 60) e.value = toText(from + len);
+      }
+    }
+    const del = el("button", "icon-btn remove-time", "×");
+    del.type = "button";
+    del.setAttribute("aria-label", "この時間を消す");
+    const row = field("", s, "〜", e, del);
+    row.classList.add("time-row");
+    const x = { start: s, end: e, row };
+    del.onclick = () => {
+      extraTimes.splice(extraTimes.indexOf(x), 1);
+      row.remove();
+      renumberTimes();
+      update();
+    };
+    s.oninput = update;
+    e.oninput = update;
+    extraTimes.push(x);
+    extraBox.append(row);
+    renumberTimes();
+    update();
+  };
+  form.append(field("日付", dayInput), mainTimeField, extraBox, addTimeField);
   // 日時が元の予定から変わったか
   const timeChanged = () => canWrite &&
     (dayInput.value !== dateKey(start) || startInput.value !== hhmm(start) || endInput.value !== hhmm(end));
@@ -158,6 +206,12 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
   const deleteError = el("p", "warn");
   save.onclick = async () => {
     const changed = timeChanged();
+    const extras = activeExtras();
+    const p = extrasProblem();
+    if (p) {
+      deleteError.textContent = p;
+      return;
+    }
     if (changed) {
       if (!dayInput.value || !startInput.value || !endInput.value) {
         deleteError.textContent = "日付と時間を入れてください。";
@@ -181,8 +235,33 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
     if (Object.keys(e).length > 0) all[key] = e;
     else delete all[key]; // 何も入力がなければ保存しておく必要がない
     saveEdits(all);
+
+    // 足した時間：それぞれ別の予定として Google カレンダーに入れる（入れられた分は欄から消す）
+    if (extras.length > 0) {
+      save.disabled = true;
+      save.textContent = "追加中...";
+      try {
+        for (const x of [...extras]) {
+          const made = await createEvent(item.cal.id, extraEvent(x));
+          const ex = extraEdit();
+          if (made && made.id && Object.keys(ex).length > 0) {
+            const edits = loadEdits();
+            edits[`${item.cal.id}|${made.id}`] = ex;
+            saveEdits(edits);
+          }
+          extraTimes.splice(extraTimes.indexOf(x), 1);
+          x.row.remove();
+        }
+      } catch (err) {
+        deleteError.textContent = err.message;
+        save.disabled = false;
+        save.textContent = "更新";
+        renumberTimes();
+        return;
+      }
+    }
     shiftDialog.close();
-    if (changed) onReload(); // 予定を取り直す
+    if (changed || extras.length > 0) onReload(); // 予定を取り直す
     else onChange();
   };
   const buttons = el("div", "dialog-buttons");
@@ -227,10 +306,69 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
     buttons,
   );
 
+  // --- 足した時間 ---
+  // 今使う足した時間（時給のバイトのシフトで、書き込めるカレンダーのときだけ）
+  const canAddTime = () => {
+    if (!canWrite) return false;
+    const s = eventToShift(currentEvent(), workplaces, currentEdit());
+    return !!s && s.payType !== "daily";
+  };
+  const activeExtras = () => (canAddTime() ? extraTimes : []);
+  // 足した時間の予定（予定名は元の予定と同じ。日付は上の日付）
+  const extraEvent = (x) => ({
+    summary: original.summary,
+    ...eventTimes(dayInput.value || dateKey(start), x.start.value, x.end.value),
+  });
+  // 足した時間の予定に付ける設定（バイト先・役職・休憩は同じ。ボーナス・メモは付けない）
+  const extraEdit = () => {
+    const e = currentEdit();
+    delete e.bonus;
+    delete e.bonusNote;
+    return e;
+  };
+  // 足した時間の入れ忘れ・重なり（問題なければ ""）
+  const extrasProblem = () => {
+    const extras = activeExtras();
+    if (extras.length === 0) return "";
+    if (extras.some(x => !x.start.value || !x.end.value)) return "足した時間も入れてください。";
+    const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+    const ranges = [[startInput.value, endInput.value], ...extras.map(x => [x.start.value, x.end.value])]
+      .map(([s, e]) => ({ s: toMin(s), e: toMin(e) <= toMin(s) ? toMin(e) + 24 * 60 : toMin(e) }));
+    for (let i = 0; i < ranges.length; i++) {
+      for (let j = i + 1; j < ranges.length; j++) {
+        if (ranges[i].s < ranges[j].e && ranges[j].s < ranges[i].e) return "入れた時間どうしが重なっています。";
+      }
+    }
+    return "";
+  };
+
   // 計算結果の表示を作り直す
   const renderPreview = (e) => {
-    const shift = eventToShift(currentEvent(), workplaces, e);
+    let shift = eventToShift(currentEvent(), workplaces, e);
     preview.textContent = "";
+    // 「＋ 時間」は時給のバイトのシフトのときだけ
+    const allowAdd = canAddTime();
+    addTimeField.hidden = !allowAdd;
+    extraBox.hidden = !allowAdd;
+    deleteError.textContent = extrasProblem();
+
+    // 時間を足したときは、全部の時間を足し合わせた内訳と合計を1つだけ出す
+    if (shift && allowAdd) {
+      const ex = extraEdit();
+      const extraShifts = extraTimes
+        .filter(x => x.start.value && x.end.value)
+        .map(x => eventToShift({ ...original, ...extraEvent(x) }, workplaces, ex))
+        .filter(Boolean);
+      if (extraShifts.length > 0) {
+        shift = { ...shift };
+        for (const s of extraShifts) {
+          for (const k of ["spanMin", "breakMin", "workMin", "nightMin", "overtimeMin",
+                           "basePay", "allowance", "transport", "bonus", "pay"]) {
+            shift[k] = (shift[k] || 0) + (s[k] || 0);
+          }
+        }
+      }
+    }
 
     if (!shift) {
       breakInput.disabled = bonus.disabled = bonusNote.disabled = true;

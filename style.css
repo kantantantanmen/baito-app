@@ -48,13 +48,35 @@ button {
 #month-label { font-size: 1.2rem; margin-left: 8px; }
 #login { background: var(--accent); color: #fff; border: none; }
 #add-shift { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-.field input[type="time"],
 .field input[type="date"] {
   font: inherit;
   padding: 5px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
 }
+/* 時刻（5分単位）：「時」と「分」の選択欄を1つの枠に並べる */
+.time-select {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  font-variant-numeric: tabular-nums;
+}
+span.time-select > select {
+  font: inherit;
+  padding: 5px 2px 5px 8px;
+  border: none !important;
+  background: transparent !important;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+span.time-select > select:last-child { padding: 5px 8px 5px 2px; }
+span.time-select > select:disabled { color: var(--muted); cursor: default; }
+.time-select:has(select:disabled) { background: #f1f3f4; }
+.time-colon { padding: 0 1px; }
 
 /* ===== 左・真ん中・右の3列 ===== */
 .layout {
@@ -97,7 +119,6 @@ button {
 .times-day.sun .times-weekday { color: #d93025; }
 .times-lines { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
 .time-row-inline { display: flex; align-items: center; gap: 4px; }
-.time-row-inline input[type="time"] { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
 .times-copy { margin-top: 8px; font-size: 0.85rem; }
 
 /* 予定設定・収入確定：カレンダーの代わりに真ん中に出す（右の集計はそのまま） */
@@ -552,7 +573,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
 .remove-time { font-size: 1.1rem; padding: 0 4px; color: var(--muted); flex-shrink: 0; }
 /* 時間の行は折り返さない（狭い画面では時間の欄を少し縮める） */
 .time-row .field-body { flex-wrap: nowrap; }
-.time-row input[type="time"] { min-width: 0; flex: 0 1 auto; }
 .dialog-buttons { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
 /* 下のボタンは文字を少し小さくして、折り返さずに1行に収める */
 .dialog-buttons button { font-size: 0.85rem; padding: 6px 12px; white-space: nowrap; }
