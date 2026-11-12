@@ -67,6 +67,10 @@ button.time-select {
   cursor: pointer;
 }
 button.time-select:disabled { background: #f1f3f4; color: var(--muted); cursor: default; }
+/* 押したあとに付く水色の枠（選んでいる印）を出さない：時刻の欄・「＋ 時間」・×・時間の区切り・画面そのもの */
+button.time-select:focus, .add-time:focus, .remove-time:focus, .time-seg:focus,
+dialog:focus, dialog .dialog-body:focus { outline: none; }
+button.time-select, .add-time, .remove-time, .time-seg { -webkit-tap-highlight-color: transparent; }
 
 /* 画面（シフトの画面・時刻を選ぶ画面）が開いているあいだは、後ろの画面をスクロールさせない */
 html:has(dialog[open]), body:has(dialog[open]) { overflow: hidden; }
