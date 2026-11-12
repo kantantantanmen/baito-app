@@ -85,6 +85,20 @@ button {
 .view-settings .calendar-section { display: none; }
 .view-settings .month-nav { visibility: hidden; }
 .view-settings .settings { display: block; grid-column: 2 / -1; }
+/* バイト先設定とシフト時間設定は同じ置き方。どちらか片方だけ出す */
+.view-settings:not(.view-times) #shift-times,
+.view-times #settings { display: none; }
+
+/* シフト時間設定：曜日ごとに、時間（何回分でも）を並べる */
+.times-card h3 { margin: 0 0 8px; font-size: 1rem; }
+.times-day { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-top: 1px solid #eee; }
+.times-weekday { width: 1.5em; padding-top: 6px; font-weight: 600; text-align: center; flex-shrink: 0; }
+.times-day.sat .times-weekday { color: #1a73e8; }
+.times-day.sun .times-weekday { color: #d93025; }
+.times-lines { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.time-row-inline { display: flex; align-items: center; gap: 4px; }
+.time-row-inline input[type="time"] { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
+.times-copy { margin-top: 8px; font-size: 0.85rem; }
 
 /* 予定設定・収入確定：カレンダーの代わりに真ん中に出す（右の集計はそのまま） */
 .view-confirm .calendar-view,

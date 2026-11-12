@@ -5,6 +5,7 @@ const message = document.getElementById("message");
 const calendarSelect = document.getElementById("calendar-select");
 const summaryPanel = document.getElementById("summary");
 const settingsView = document.getElementById("settings");
+const shiftTimesView = document.getElementById("shift-times");
 const confirmView = document.getElementById("confirm");
 const planView = document.getElementById("plan");
 const statsView = document.getElementById("stats");
@@ -551,7 +552,9 @@ function showView(view) {
   currentView = view;
 
   // body に "view-settings" などの印を付けたり外したりする。見た目の切り替えは CSS が担当
-  document.body.classList.toggle("view-settings", view === "settings");
+  // シフト時間設定は、バイト先設定と同じ置き方（カレンダーと収入を隠す）。view-times で中身を切り替える
+  document.body.classList.toggle("view-settings", view === "settings" || view === "times");
+  document.body.classList.toggle("view-times", view === "times");
   document.body.classList.toggle("view-confirm", view === "confirm");
   document.body.classList.toggle("view-plan", view === "plan");
   document.body.classList.toggle("view-stats", view === "stats");
@@ -562,6 +565,7 @@ function showView(view) {
   }
 
   if (view === "settings") renderSettings(settingsView, renderAll);
+  if (view === "times") renderShiftTimes(shiftTimesView);
   if (view === "confirm" || view === "plan" || view === "stats") renderAll();
 }
 

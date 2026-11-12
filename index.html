@@ -64,6 +64,7 @@
         <button class="menu-item" data-view="plan">予定金額設定</button>
         <button class="menu-item" data-view="confirm">収入確定</button>
         <button class="menu-item" data-view="settings">バイト先設定</button>
+        <button class="menu-item" data-view="times">シフト時間設定</button>
       </nav>
 
       <div class="calendar-section">
@@ -106,6 +107,9 @@
 
     <!-- 「バイト先設定」の画面 -->
     <section id="settings" class="settings"></section>
+
+    <!-- 「シフト時間設定」の画面（バイト先設定と同じ置き方。中身は shift-times.js が作る） -->
+    <section id="shift-times" class="settings"></section>
   </div>
 
   <!-- 予定を押したときに出る詳細画面（中身は shift-dialog.js が作る） -->
@@ -116,6 +120,7 @@
   <script src="utils.js"></script>
   <script src="wage.js"></script>
   <script src="settings.js"></script>
+  <script src="shift-times.js"></script>
   <script src="income.js"></script>
   <script src="summary.js"></script>
   <script src="shift-dialog.js"></script>

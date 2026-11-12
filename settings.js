@@ -433,6 +433,9 @@ function renameWorkplaceData(oldName, newName) {
     }
     writeJSON(LAST_SHIFT_KEY, last);
   }
+
+  // シフト時間設定で決めた時間
+  renameShiftTimes(oldName, newName);
 }
 
 // ===== バイト先設定の画面全体 =====

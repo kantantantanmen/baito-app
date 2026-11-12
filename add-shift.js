@@ -164,13 +164,14 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     renumberTimes();
     update();
   };
-  addTimeButton.onclick = () => {
+  // 時間の欄を1つ足す。values があればその時間を入れる（なければ前の時間から決める）
+  const addTimeRow = (values) => {
     // 前の時間の1時間あとから、同じ長さで入れておく（例：10:00〜13:00 のあとなら 14:00〜17:00）
     // 夜中の0時を越えてしまうときは、終わりを空にしておく
     const prev = extraTimes.length > 0 ? extraTimes[extraTimes.length - 1] : { start, end };
-    const s = timeInput("");
-    const e = timeInput("");
-    if (prev.start.value && prev.end.value) {
+    const s = timeInput(values ? values.start : "");
+    const e = timeInput(values ? values.end : "");
+    if (!values && prev.start.value && prev.end.value) {
       const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
       const toText = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
       const len = toMin(prev.end.value) - toMin(prev.start.value);
@@ -195,7 +196,30 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     extraTimes.push(x);
     extraBox.append(row);
     renumberTimes();
+  };
+  addTimeButton.onclick = () => {
+    addTimeRow();
     update();
+  };
+  // シフト時間設定で、このバイト先・この曜日の時間が決めてあれば入れる（時間1・時間2…）
+  // 決めていなければ、前回そのバイト先で入れた時間（1つ目だけ）。開いた仮シフトを直すときは変えない
+  // force：決めた時間がないときも前回の時間に戻す（バイト先を変えたとき）
+  const applyDefaultTimes = (force) => {
+    if (tentative) return;
+    const defaults = isHourly() && kind === "date" ? defaultTimesFor(place.value, date.value) : [];
+    if (defaults.length === 0) {
+      if (force) {
+        for (const x of extraTimes.splice(0)) x.row.remove();
+        setTimes();
+        renumberTimes();
+      }
+      return;
+    }
+    for (const x of extraTimes.splice(0)) x.row.remove();
+    start.value = defaults[0].start;
+    end.value = defaults[0].end;
+    for (const t of defaults.slice(1)) addTimeRow(t);
+    renumberTimes();
   };
   // 今使う足した時間（時給でないときや、日付が未定のときは使わない）
   const isHourly = () => {
@@ -482,7 +506,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   };
   place.onchange = () => {
     fillRoles();
-    setTimes();
+    applyDefaultTimes(true); // シフト時間設定の時間（なければ前回の時間）
     showKind(); // 日給のバイト先なら「＋ 時間」を隠す
     update();
   };
@@ -495,6 +519,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       kind = "count";
       showKind();
     }
+    // 日付を変えたら、その曜日にシフト時間設定の時間があれば入れ直す
+    if (date.value) applyDefaultTimes(false);
     update();
   };
 
@@ -591,6 +617,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     else submit();
   };
 
+  applyDefaultTimes(false); // シフト時間設定で、この曜日の時間が決めてあれば入れる
   showKind();
   update();
   shiftDialog.append(form);
