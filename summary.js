@@ -69,12 +69,12 @@ function rangeName(months) {
   return `${monthName(months[0])}収入〜${monthName(months[months.length - 1])}収入`;
 }
 
-// 未確定の月の金額の決まり方（集計・予定設定の画面の説明に使う）
-// カレンダー＋仮シフトを使い、シフトがない月だけ予定設定（カレンダー優先）。切り替えはない
+// 未確定の月の金額の決まり方（集計・予定金額の画面の説明に使う）
+// カレンダー＋仮シフトを使い、シフトがない月だけ予定金額（カレンダー優先）。切り替えはない
 const MONTH_VALUE_TEXT =
   "今月までの月と、全部のバイト先が確定した月は、確定額（自動確定・見込みを含む）。" +
   "来月から先のまだ決まっていない月は、確定したバイト先は確定額、ほかはカレンダー＋仮シフトから計算した額。" +
-  "カレンダーにも仮シフトにもシフトがない月だけ、予定設定の額を使います。" +
+  "カレンダーにも仮シフトにもシフトがない月だけ、予定金額の額を使います。" +
   "シフトが一部だけ入っている月は、入るつもりの分を仮シフトで足すと実際に近くなります。";
 
 // ある月の収入の箱。バイト先ごとに「振込日・どの期間の勤務か・金額」を並べる
@@ -96,7 +96,7 @@ function incomeBox(title, subtitle, income, month, info, slot, extraRows = [], t
   }
   const box = panelBox(title, [
     ...(helpExtra ? [helpExtra] : []),
-    `${monthName(month)}に振り込まれる給料です。同じ月に働いても、当月払いか翌月払いかで入る月が変わります（勤怠設定の締め日・給料日）。`,
+    `${monthName(month)}に振り込まれる給料です。同じ月に働いても、当月払いか翌月払いかで入る月が変わります（バイト先設定の締め日・給料日）。`,
     badgeHelp.join(""),
   ]);
   box.appendChild(el("p", "subtitle", subtitle));
@@ -116,8 +116,8 @@ function incomeBox(title, subtitle, income, month, info, slot, extraRows = [], t
   const details = rememberedDetails(`income:${slot}`, "breakdown");
   details.append(el("summary", "", "内訳"));
   if (info.source === "plan") {
-    // 予定設定の金額を使っている月は、内訳を出さずに一言だけ
-    details.append(el("p", "muted", "予定設定の金額で見込んでいます。"));
+    // 予定金額の金額を使っている月は、内訳を出さずに一言だけ
+    details.append(el("p", "muted", "予定金額の金額で見込んでいます。"));
   } else if (rows.length === 0) {
     details.append(el("p", "muted", tentatives.length > 0
       ? "カレンダーには、この月に振り込まれるシフトはまだありません。"
@@ -170,7 +170,7 @@ function renderSummary(container, ctx) {
   const m0 = viewMonth;               // 表示中の月
   const n1 = addMonths(viewMonth, 1); // 来月
 
-  // 未確定の月 ＝ カレンダー＋仮シフト。確定もシフトもない月だけ予定設定
+  // 未確定の月 ＝ カレンダー＋仮シフト。確定もシフトもない月だけ予定金額
   const info = (d, onlyAverage = false) => monthInfo(income, plans, monthKey(d), onlyAverage, "calendar");
   const avgValue = (d) => info(d, true).value; // 平均・上限に使う金額
 
@@ -181,12 +181,12 @@ function renderSummary(container, ctx) {
                          [], tentativesFor(ctx.activeTentatives, m0), "（上の金額に入っています）");
   if (unmatched > 0) {
     box0.appendChild(el("p", "note",
-      `バイト先に当てはまらない時間つきの予定が${monthName(m0)}に${unmatched}件あります。シフトなら「勤怠設定」でバイト先を登録してください。`));
+      `バイト先に当てはまらない時間つきの予定が${monthName(m0)}に${unmatched}件あります。シフトなら「バイト先設定」でバイト先を登録してください。`));
   }
   container.appendChild(box0);
 
   // ---------- 2. 来月の収入（合計はカレンダーのシフトだけで計算） ----------
-  // 合計の下に、参考として「カレンダー＋仮シフト」と「予定設定」も出す。全部確定していなければ「（予定）」を付ける
+  // 合計の下に、参考として「カレンダー＋仮シフト」と「予定金額」も出す。全部確定していなければ「（予定）」を付ける
   const incomeCalendar = ctx.incomeCalendar || income;
   const i1 = monthInfo(incomeCalendar, {}, monthKey(n1), false, "calendar");
   const n1Fixed = i1.allConfirmed;
@@ -196,7 +196,7 @@ function renderSummary(container, ctx) {
     ["カレンダー＋仮シフト", formatYen(withTentative), "ref"],
     // 3か月平均に入れる額（集計の月平均の表の「収入」、カレンダー優先と同じ）
     ["うち平均に入る額", formatYen(avgValue(n1)), "ref"],
-    [`参考：予定設定の${monthName(n1)}`, plan1 == null ? "未設定" : formatYen(plan1), "ref"],
+    [`参考：予定金額の${monthName(n1)}`, plan1 == null ? "未設定" : formatYen(plan1), "ref"],
   ];
   container.appendChild(
     incomeBox(`${monthName(n1)}の収入${n1Fixed ? "" : "（予定）"}`,
@@ -206,8 +206,8 @@ function renderSummary(container, ctx) {
               "仮シフトも入れた額は「カレンダー＋仮シフト」の行に出しています。" +
               "「うち平均に入る額」は、そのうち3か月平均の計算に入れる額です（平均外のバイト先の分は入れません）。" +
               "集計の月平均の表の「収入」（カレンダー優先）と同じ額です。" +
-              "カレンダーにも仮シフトにもシフトがない月は、予定設定の額になります。" +
-              "「参考：予定設定」は予定設定の画面で入れた金額で、合計には入れていません。"));
+              "カレンダーにも仮シフトにもシフトがない月は、予定金額の額になります。" +
+              "「参考：予定金額」は予定金額の画面で入れた金額で、合計には入れていません。"));
 
   // ---------- 3. 来月の収入の上限（＝今月どれだけ働いてよいか） ----------
   // 翌月払いなら、今月働いた分は来月の収入になる
@@ -229,7 +229,7 @@ function renderSummary(container, ctx) {
   }
   const yearCap = yearLimit - otherMonths;
 
-  // 大きく出す上限：4つ（年の上限から・3か月平均2つ・予定設定）の中で一番小さい数字。
+  // 大きく出す上限：4つ（年の上限から・3か月平均2つ・予定金額）の中で一番小さい数字。
   // その月に入ってくるお金全部（平均外も含む）の上限として使う
   const minAll = Math.min(cap.min, yearCap);
   const result = Math.max(0, minAll);
@@ -243,11 +243,11 @@ function renderSummary(container, ctx) {
 
   const box1 = panelBox(`${monthName(target)}の収入はいくらまで？`, [
     `${monthName(target)}に入ってくるお金全部（平均外も含む）の上限です。翌月払いなら、${monthName(m0)}に働いた分が${monthName(target)}の収入になります。`,
-    "上限は「年の上限から」「3か月平均2つ」「予定設定」の4つの中で一番小さい金額です。「上限の決まり方」を押すと中身が見られます。",
+    "上限は「年の上限から」「3か月平均2つ」「予定金額」の4つの中で一番小さい金額です。「上限の決まり方」を押すと中身が見られます。",
     `年の上限から ＝ 年の上限 −（${year}年1月〜${monthName(target)}の前の月までの収入）。`,
     "各月の金額：今月までの月と全部確定した月は確定額（自動確定・見込みを含む）。" +
-    "まだ決まっていない月は、確定したバイト先は確定額、ほかはカレンダー＋仮シフトの額。確定もシフトもない月だけ予定設定の額を使います。",
-    `あと ＝ 上限 − カレンダーから − 仮シフト。上限：3か月平均は月 ${formatYen(limit)}、年は ${formatYen(yearLimit)}（勤怠設定で変更できます）。`,
+    "まだ決まっていない月は、確定したバイト先は確定額、ほかはカレンダー＋仮シフトの額。確定もシフトもない月だけ予定金額の額を使います。",
+    `あと ＝ 上限 − カレンダーから − 仮シフト。上限：3か月平均は月 ${formatYen(limit)}、年は ${formatYen(yearLimit)}（バイト先設定で変更できます）。`,
   ]);
   box1.appendChild(el("p", "subtitle", `${monthName(m0)}どれだけ働いてよいか`));
 
@@ -297,8 +297,8 @@ function renderSummary(container, ctx) {
     addRow(howTo, label, formatYen(Math.max(0, w.cap)), isMust ? "must" : (w.cap === minAll ? "strong" : "dim"));
   }
 
-  // (4) 予定設定
-  addRow(howTo, `予定設定の${monthName(target)}`, cap.plan == null ? "未設定" : formatYen(cap.plan),
+  // (4) 予定金額
+  addRow(howTo, `予定金額の${monthName(target)}`, cap.plan == null ? "未設定" : formatYen(cap.plan),
          cap.plan != null && cap.plan === minAll ? "strong" : "dim");
   box1.appendChild(howTo);
 

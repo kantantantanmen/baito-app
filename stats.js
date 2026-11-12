@@ -16,7 +16,7 @@ function tableRow(cells, tag = "td") {
 // 自動確定（カレンダーの額で自動で確定したもの）も、表示は「確定」にまとめる（見分けは収入確定の画面だけ）
 //   今月の見込みがある →「見込み」（全部見込み）または「確定＋見込み」
 function sourceText(x) {
-  if (x.source === "plan") return "予定設定";
+  if (x.source === "plan") return "予定金額";
   if (x.hasConfirmed) {
     if (!x.allConfirmed) return "一部確定";
     if (x.expectCount > 0) return x.autoCount + x.manualCount === 0 ? "見込み" : "確定＋見込み";
@@ -32,7 +32,7 @@ function tableMonthName(d, first) {
   return first || d.getMonth() === 0 ? `${d.getFullYear()}年${monthName(d)}` : monthName(d);
 }
 
-// ----- 集計の画面だけの切り替え（カレンダー優先／予定設定優先） -----
+// ----- 集計の画面だけの切り替え（カレンダー優先／予定金額優先） -----
 // 月平均の表の、来月から先でまだ全部は確定していない月に効く（年の表は両方の列が並んでいるので関係ない）
 const STATS_PRIORITY_KEY = "baito-priority-main";
 
@@ -48,7 +48,7 @@ function statsPriorityToggle(priority, onChange) {
   const box = el("div", "priority");
   box.append(el("span", "priority-label", "月平均の表で、来月から先の月に使う額"));
   const group = el("div", "segmented");
-  for (const [value, text] of [["calendar", "カレンダー優先"], ["plan", "予定設定優先"]]) {
+  for (const [value, text] of [["calendar", "カレンダー優先"], ["plan", "予定金額優先"]]) {
     const button = el("button", value === priority ? "active" : "", text);
     button.onclick = () => {
       saveStatsPriority(value);
@@ -57,13 +57,13 @@ function statsPriorityToggle(priority, onChange) {
     group.append(button);
   }
   const { button, text } = helpParts("help:stats-priority", [
-    "カレンダー優先：カレンダー＋仮シフトから計算した額（確定したバイト先は確定額）。シフトがない月だけ予定設定の額。",
-    "予定設定優先：予定設定に入力がある月はその額（一部確定していても）。入力がない月はカレンダー優先と同じ。",
+    "カレンダー優先：カレンダー＋仮シフトから計算した額（確定したバイト先は確定額）。シフトがない月だけ予定金額の額。",
+    "予定金額優先：予定金額に入力がある月はその額（一部確定していても）。入力がない月はカレンダー優先と同じ。",
     "今月までの月と全部確定した月は、どちらでも確定額（自動確定・見込みを含む）。",
   ]);
   const use = el("div", "help-head");
   use.append(el("p", "small priority-use",
-    "カレンダー優先：今入れたシフトだと平均はどうなるか　／　予定設定優先：計画どおりに働いたら平均はどうなるか"), button);
+    "カレンダー優先：今入れたシフトだと平均はどうなるか\n予定金額優先：計画どおりに働いたら平均はどうなるか"), button);
   box.append(group, use, text);
   return box;
 }
@@ -76,8 +76,8 @@ function renderStats(container, ctx) {
 
   // 月の金額：今月までの月は確定額（自動確定・見込みを含む）。
   // 来月から先でまだ全部は確定していない月は、この画面の切り替えに従う
-  //   カレンダー優先：カレンダー＋仮シフト（シフトがない月だけ予定設定）
-  //   予定設定優先  ：予定設定に入力があればその額（なければカレンダー優先と同じ）
+  //   カレンダー優先：カレンダー＋仮シフト（シフトがない月だけ予定金額）
+  //   予定金額優先  ：予定金額に入力があればその額（なければカレンダー優先と同じ）
   const priority = loadStatsPriority();
   const infoOf = (d) => monthInfo(income, plans, monthKey(d), true, priority);
   const valueOf = (d) => infoOf(d).value;
@@ -139,18 +139,18 @@ function renderStats(container, ctx) {
   yearSection.append(
     titleWithHelp("h3", `${year}年の収入（1〜12月に振り込まれる分）`, [
       "確定のみ：確定した金額だけ（自動確定・今月の見込みを含む）。",
-      "カレンダー優先：確定したバイト先は確定額、ほかはカレンダー＋仮シフト（どちらもない月は予定設定）。",
-      "予定設定優先：予定設定に入力がある月は一部確定していても予定設定、入力がない月はカレンダー優先と同じ。",
+      "カレンダー優先：確定したバイト先は確定額、ほかはカレンダー＋仮シフト（どちらもない月は予定金額）。",
+      "予定金額優先：予定金額に入力がある月は一部確定していても予定金額、入力がない月はカレンダー優先と同じ。",
       "今月までの月と全部確定した月は、どちらでも確定額（自動確定・見込みを含む）。",
       "振り込まれた月で数えるので、税金の年収と同じ数え方です。",
     ], "stats-year"),
     el("p", "small priority-use",
-      "カレンダー優先：今入れたシフトだと年の収入はどうなるか　／　予定設定優先：計画どおりに働いたら年の収入はどうなるか"),
+      "カレンダー優先：今入れたシフトだと年の収入はどうなるか\n予定金額優先：計画どおりに働いたら年の収入はどうなるか"),
   );
 
   const yearTable = el("table", "data-table");
   yearTable.append(tableRow(
-    [["月"], ["確定のみ", "num"], ["カレンダー優先", "num"], ["予定設定優先", "num"]], "th"));
+    [["月"], ["確定のみ", "num"], ["カレンダー優先", "num"], ["予定金額優先", "num"]], "th"));
 
   const sums = { confirmed: 0, calendar: 0, plan: 0 };
   for (let m = 0; m < 12; m++) {

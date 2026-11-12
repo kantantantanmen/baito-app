@@ -100,7 +100,7 @@ function eventToShift(event, workplaces, edit = {}) {
   const spanMin = Math.round((end - start) / 60000); // ミリ秒 → 分（拘束時間）
   if (spanMin <= 0 || spanMin >= 24 * 60) return null;
 
-  // 休憩：指定があればそれ、なければ勤怠設定の「休憩 〇時間」
+  // 休憩：指定があればそれ、なければバイト先設定の「休憩 〇時間」
   const autoBreak = Math.round((wp.breakHours || 0) * 60);
   let breakMin = edit.breakMin ?? autoBreak; // ?? は「左が空（null か undefined）なら右を使う」
   breakMin = Math.min(Math.max(0, breakMin), spanMin);
@@ -127,10 +127,10 @@ function eventToShift(event, workplaces, edit = {}) {
     overtimeMin = detail.overtimeMin;
   }
 
-  // 役職の手当：1回ごと ＋ 1時間ごと × 働いた時間
-  const allowance = role
-    ? (role.perShift || 0) + Math.floor((role.perHour || 0) * workMin / 60)
-    : 0;
+  // 手当：1回ごと ＋ 1時間ごと × 働いた時間
+  // 役職のシフトは役職の手当、役職なしのシフトはバイト先の手当
+  const src = role || wp;
+  const allowance = (src.perShift || 0) + Math.floor((src.perHour || 0) * workMin / 60);
   const transport = wp.transport || 0; // 交通費（1回ごと）
   const bonus = edit.bonus || 0;
 
@@ -141,7 +141,7 @@ function eventToShift(event, workplaces, edit = {}) {
     basePay,             // 時給 or 日給の分（夜間・残業の割増を含む）
     nightMin,            // 夜間に働いた分
     overtimeMin,         // 残業した分
-    allowance,           // 役職の手当
+    allowance,           // 手当（役職の手当か、バイト先の手当）
     transport,           // 交通費
     bonus,               // ボーナス
     pay: basePay + allowance + transport + bonus, // 合計
@@ -149,7 +149,7 @@ function eventToShift(event, workplaces, edit = {}) {
     month: monthKey(start),
     spanMin,             // 拘束時間（分）
     breakMin,            // 休憩（分）
-    autoBreak,           // 勤怠設定どおりの休憩（分）
+    autoBreak,           // バイト先設定どおりの休憩（分）
     workMin,             // 実働（分）
     inAverage: wp.inAverage,
     payDate: dateKey(payDateFor(start, wp)), // 振込日 "2026-12-25"

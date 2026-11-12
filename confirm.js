@@ -95,7 +95,7 @@ function renderConfirm(container, income, viewMonth, workplaces, onChange) {
   );
 
   if (rows.length === 0) {
-    container.append(el("p", "note", "バイト先が登録されていません。先に「勤怠設定」で登録してください。"));
+    container.append(el("p", "note", "バイト先が登録されていません。先に「バイト先設定」で登録してください。"));
     return;
   }
   for (const r of rows) {

@@ -1,4 +1,4 @@
-// ===== 勤怠設定（バイト先と上限の保存・設定画面） =====
+// ===== バイト先設定（バイト先と上限の保存・設定画面） =====
 
 const WORKPLACES_KEY = "baito-workplaces";
 const LIMIT_KEY = "baito-limit";
@@ -12,6 +12,8 @@ const NEW_WORKPLACE = {
   dailyPay: 8000,      // 日給（円）
   breakHours: 0,       // 休憩（時間）。1回のシフトから毎回引く
   transport: 0,        // 交通費（円/回）
+  perShift: 0,         // 手当（円/回）。役職なしのシフトに付く（役職のシフトは役職の手当）
+  perHour: 0,          // 手当（円/時）
   nightStart: "22:00", // 夜間の始まり
   nightEnd: "05:00",   // 夜間の終わり
   nightWage: 0,        // 夜間の時給（0 なら基本と同じ＝1倍）
@@ -186,6 +188,21 @@ function workplaceCard(list, i, save, rerender) {
   const transport = numberInput(wp.transport, 0);
   transport.step = 10;
 
+  // 手当（役職なしのシフトに付く）：1回ごと と 1時間ごと を縦に並べる
+  const perShift = numberInput(wp.perShift || "", 0);
+  const perHour = numberInput(wp.perHour || "", 0);
+  perShift.placeholder = "0";
+  perHour.placeholder = "0";
+  const allowanceLines = (a, b) => {
+    const box = el("div", "allowance-box");
+    const l1 = el("div", "role-line");
+    l1.append(a, "円/回");
+    const l2 = el("div", "role-line");
+    l2.append(b, "円/時");
+    box.append(l1, l2);
+    return box;
+  };
+
   // 支払いのタイミング
   const payCycle = selectInput(PAY_CYCLE_CHOICES, wp.payCycle);
   const closing = selectInput(CLOSING_CHOICES, wp.closingDay);
@@ -253,8 +270,11 @@ function workplaceCard(list, i, save, rerender) {
     const line1 = el("div", "role-line");
     line1.append(r.name, r.del);
     const line2 = el("div", "role-line");
-    line2.append("時給", r.wage, "円　手当", r.perShift, "円/回 ＋", r.perHour, "円/時");
-    row.append(line1, line2);
+    line2.append("時給", r.wage, "円");
+    // 手当
+    // ▭円/回
+    // ▭円/時
+    row.append(line1, line2, el("div", "role-line", "手当"), allowanceLines(r.perShift, r.perHour));
     roleBox.append(row);
   }
   const addRole = el("button", "", "＋ 役職を追加");
@@ -266,7 +286,8 @@ function workplaceCard(list, i, save, rerender) {
   };
   roleBox.append(
     addRole,
-    el("p", "muted small", "予定名に役職名が入っていると、その役職で計算します（例：「カフェ キッチン」）。"),
+    el("p", "muted small", "予定名に役職名が入っていると、その役職で計算します（例：「カフェ キッチン」）。" +
+      "役職のシフトには、上の「手当」ではなく役職の手当が付きます。"),
   );
 
   card.append(
@@ -276,6 +297,7 @@ function workplaceCard(list, i, save, rerender) {
     dailyField,
     field("休憩", breakHours, "時間（0.5＝30分）"),
     field("交通費", transport, "円/回"),
+    field("手当", allowanceLines(perShift, perHour)),
     field("支払い", payCycle),
     monthFields,
     weekFields,
@@ -322,6 +344,8 @@ function workplaceCard(list, i, save, rerender) {
       dailyPay: Number(dailyPay.value) || 0,
       breakHours: Number(breakHours.value) || 0,
       transport: Number(transport.value) || 0,
+      perShift: Number(perShift.value) || 0,
+      perHour: Number(perHour.value) || 0,
       nightStart: nightStart.value || "22:00",
       nightEnd: nightEnd.value || "05:00",
       // 基本の時給と同じ金額なら 0（＝基本と同じ）として保存する
@@ -348,7 +372,7 @@ function workplaceCard(list, i, save, rerender) {
     save();
   };
   const roleFields = roleInputs.flatMap(r => [r.name, r.wage, r.perShift, r.perHour]);
-  for (const input of [name, hourly.input, daily.input, wage, dailyPay, breakHours, transport,
+  for (const input of [name, hourly.input, daily.input, wage, dailyPay, breakHours, transport, perShift, perHour,
                        nightStart, nightEnd, nightWage, overtimeAfter, overtimeWage,
                        payCycle, weekClose, weekOffset, weekPay, autoTiming, closing, payMonth, payDay, inAverage, ...roleFields]) {
     input.onchange = update;
@@ -411,7 +435,7 @@ function renameWorkplaceData(oldName, newName) {
   }
 }
 
-// ===== 勤怠設定の画面全体 =====
+// ===== バイト先設定の画面全体 =====
 // 設定が変わったら onChange を呼ぶ（カレンダーと集計を計算し直すため）
 function renderSettings(container, onChange) {
   const list = loadWorkplaces();
@@ -422,7 +446,7 @@ function renderSettings(container, onChange) {
   const rerender = () => renderSettings(container, onChange);
 
   container.textContent = "";
-  container.appendChild(el("h2", "settings-title", "勤怠設定"));
+  container.appendChild(el("h2", "settings-title", "バイト先設定"));
 
   // --- バイト先 ---
   const wpSection = el("section", "settings-section");

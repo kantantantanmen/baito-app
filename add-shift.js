@@ -41,7 +41,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   const dialogTitle = tentative ? "仮シフト" : isTentativeMode ? "仮シフトを追加" : "シフトを追加";
   const workplaces = loadWorkplaces().filter(w => w.name);
   if (workplaces.length === 0) {
-    showDialogMessage(dialogTitle, "先に「勤怠設定」でバイト先を登録してください。");
+    showDialogMessage(dialogTitle, "先に「バイト先設定」でバイト先を登録してください。");
     return;
   }
   // Google カレンダーに追加する画面は、書き込めるカレンダーがないと使えない
@@ -453,7 +453,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     if (!shift) return;
 
     breakInput.placeholder = String(shift.autoBreak);
-    breakHint.textContent = `空欄なら勤怠設定どおり（${formatHours(shift.autoBreak)}）`;
+    breakHint.textContent = `空欄ならバイト先設定どおり（${formatHours(shift.autoBreak)}）`;
     // 時間を足したときは、全部の時間を足し合わせた内訳と合計を1つだけ出す
     const extraShifts = isCount ? [] : activeExtras()
       .filter(x => x.start.value && x.end.value)

@@ -58,7 +58,7 @@ function shiftPreviewRows(preview, shift, totalLabel = "合計") {
   if (shift.nightMin) addRow(preview, "うち夜間", formatHours(shift.nightMin));
   if (shift.overtimeMin) addRow(preview, "うち残業", formatHours(shift.overtimeMin));
   addRow(preview, shift.payType === "daily" ? "日給" : "給料", formatYen(shift.basePay));
-  if (shift.allowance) addRow(preview, "役職の手当", formatYen(shift.allowance));
+  if (shift.allowance) addRow(preview, "手当", formatYen(shift.allowance));
   if (shift.transport) addRow(preview, "交通費", formatYen(shift.transport));
   if (shift.bonus) addRow(preview, "ボーナス", formatYen(shift.bonus));
   addRow(preview, totalLabel, formatYen(shift.pay), "total big");
@@ -240,7 +240,7 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
     }
     breakInput.disabled = bonus.disabled = bonusNote.disabled = false;
     breakInput.placeholder = String(shift.autoBreak);
-    breakHint.textContent = `空欄なら勤怠設定どおり（${formatHours(shift.autoBreak)}）`;
+    breakHint.textContent = `空欄ならバイト先設定どおり（${formatHours(shift.autoBreak)}）`;
 
     shiftPreviewRows(preview, shift);
     addRow(preview, "振込予定日", shortDate(shift.payDate));

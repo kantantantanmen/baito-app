@@ -46,7 +46,7 @@ function gridRange() {
 //  ・カレンダーの表示範囲
 //  ・7か月前〜13か月後（集計の15か月分の表と、その平均・上限の計算に使う）
 //  ・去年の10月〜今年の12月（年合計を出すため）
-//  ・今日の年の前の年の9月〜再来年の2月（予定設定の24か月分と、その平均・上限の計算に使う）
+//  ・今日の年の前の年の9月〜再来年の2月（予定金額の24か月分と、その平均・上限の計算に使う）
 function fetchRange() {
   const g = gridRange();
   const year = viewMonth.getFullYear();
@@ -182,7 +182,7 @@ function makeChip(item) {
   chip.type = "button";
   if (shift) chip.classList.add("shift");
 
-  // バイトのシフトは、予定名ではなくバイト先の名前（と役職）を出す（勤怠設定で名前を変えるとここも変わる）
+  // バイトのシフトは、予定名ではなくバイト先の名前（と役職）を出す（バイト先設定で名前を変えるとここも変わる）
   // 予定名は、マウスを乗せたときと、予定を押した画面の見出しに出る
   const shownTitle = shift ? [shift.place, shift.role].filter(Boolean).join(" ") : title;
   chip.append(el("span", "text", shownTitle));
@@ -496,7 +496,7 @@ document.getElementById("add-shift").onclick = () => {
   openAddShift(dateKey(day));
 };
 
-// ===== 画面の切り替え（表示・予定設定・収入確定・勤怠設定） =====
+// ===== 画面の切り替え（表示・予定金額・収入確定・バイト先設定） =====
 function showView(view) {
   currentView = view;
 

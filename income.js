@@ -1,4 +1,4 @@
-// ===== 月ごとの収入（確定額・カレンダー・予定設定をまとめる） =====
+// ===== 月ごとの収入（確定額・カレンダー・予定金額をまとめる） =====
 // 画面に出す金額は、すべて「◯月の収入」＝その月に振り込まれる額で数える。
 // シフトは、バイト先の締め日・給料日から出した振込日の月に入る
 // （同じ11月に働いても、当月払いなら11月の収入、翌月払いなら12月の収入）
@@ -184,7 +184,7 @@ function autoConfirmClosed(income, workplaces, firstMonth) {
   return changed;
 }
 
-// ----- 予定設定（年と月ごと。「◯月の収入」の予定） -----
+// ----- 予定金額（年と月ごと。「◯月の収入」の予定） -----
 // 形: { "2026-12": 100000, "2027-01": 80000 }
 const PLANS_KEY = "baito-plans-ym";
 const MONTHLY_PLANS_KEY = "baito-plans-income"; // 1つ前のしくみ（年に関係なく "01"〜"12"）
@@ -217,7 +217,7 @@ function setPlan(month, amount) {
   localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
 }
 
-// "2026-12" → その月の予定設定の金額（なければ undefined）
+// "2026-12" → その月の予定金額の金額（なければ undefined）
 function planFor(plans, month) {
   return plans[month];
 }
@@ -247,7 +247,7 @@ function incomeByMonth(shifts, workplaces, confirmed) {
   };
 
   // カレンダー（と仮シフト）から計算した額を、振り込まれる月ごとに足していく
-  // （s.payDate は勤怠設定の締め日・給料日から出した振込日。当月払い・翌月払いでここが変わる）
+  // （s.payDate はバイト先設定の締め日・給料日から出した振込日。当月払い・翌月払いでここが変わる）
   for (const s of shifts) {
     const r = get(s.payDate.slice(0, 7), s.place);
     r.estimate += s.pay;
@@ -310,12 +310,12 @@ function monthRows(income, month) {
 // month（収入の月 "2026-12"）の金額と、その出どころを返す
 //   "calendar"（カレンダー優先）：
 //       確定したバイト先は確定額、確定していないバイト先はカレンダー（＋仮シフト）から計算した額。
-//       どちらもない月だけ予定設定
-//   "plan"（予定設定優先）：
-//       予定設定に入力があれば、一部確定していても予定設定の金額。入力がない月はカレンダー優先と同じ
-//   全部確定した月と今月までの月は、どちらでも確定額（予定設定は使わない）
+//       どちらもない月だけ予定金額
+//   "plan"（予定金額優先）：
+//       予定金額に入力があれば、一部確定していても予定金額の金額。入力がない月はカレンダー優先と同じ
+//   全部確定した月と今月までの月は、どちらでも確定額（予定金額は使わない）
 //   → 違いが出るのは、来月から先で全部は確定していない月だけ
-//   画面の計算はどこも "calendar"。"plan" は集計の年の表の「予定設定優先」の列だけで使う
+//   画面の計算はどこも "calendar"。"plan" は集計の年の表の「予定金額優先」の列だけで使う
 // 戻り値: { value: 金額, source: "plan" または "actual", confirmed: そのうち確定した額,
 //          hasConfirmed: 確定したバイト先があるか（0円で確定した場合も true）,
 //          allConfirmed: その月のバイト先が全部確定しているか,
@@ -323,7 +323,7 @@ function monthRows(income, month) {
 //          expected: そのうち見込みの額 }
 // 見込み（今月のまだ増える分）も、計算上は確定と同じに扱う
 // onlyAverage のときは、3か月平均に入れないバイト先の額を足さない。
-// ただし予定設定を使うかの判定には数える（平均外のシフトだけでも「カレンダーあり」）。
+// ただし予定金額を使うかの判定には数える（平均外のシフトだけでも「カレンダーあり」）。
 // そのときの0円は outsideOnly（平均外のみ）で見分ける
 function monthInfo(income, plans, month, onlyAverage = false, priority = "calendar") {
   const allRows = monthRows(income, month);
@@ -336,7 +336,7 @@ function monthInfo(income, plans, month, onlyAverage = false, priority = "calend
   const plan = planFor(plans, month);
 
   if (plan != null && !allConfirmed && month > monthKey(new Date())) {
-    // 予定設定優先なら一部確定があっても予定設定。カレンダー優先なら、確定もカレンダーもない月だけ予定設定
+    // 予定金額優先なら一部確定があっても予定金額。カレンダー優先なら、確定もカレンダーもない月だけ予定金額
     // 全部確定した月と、今月までの月（確定・自動確定・見込みを使う）は、ここに来ない
     const usePlan = priority === "plan" || (!hasConfirmed && rows.length === 0);
     if (usePlan) {
@@ -379,7 +379,7 @@ function overLimitMonths(months, valueOf, limit) {
 // month（収入の月）について、次の3つのうち一番小さい（きびしい）ものが上限
 //   (1) 2か月前〜その月の3か月平均から：上限×3 −（2か月前 ＋ 前の月）
 //   (2) 前の月〜次の月の3か月平均から  ：上限×3 −（前の月 ＋ 次の月）
-//   (3) 予定設定のその月の金額（入力があれば）
+//   (3) 予定金額のその月の金額（入力があれば）
 // valueOf(d)：月 d の金額を返す関数
 // 戻り値: { windows: [{ months, cap }, { months, cap }], plan, windowMin（(1)(2)の小さい方）, min（全体） }
 function capForMonth(month, valueOf, limit, plans) {

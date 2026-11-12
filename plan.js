@@ -1,10 +1,10 @@
-// ===== 「予定設定」の画面 =====
+// ===== 「予定金額」の画面 =====
 // 今年の1月〜来年の12月（24か月）について、月ごとに「稼ぎたさ」と「収入の予定」を決める。
 //   ・今月までの月と、収入確定した月は「決まっている月」。実際の金額を表示するだけ
 //   ・それより先の月は、稼ぎたさを選んで「案を作る」と、収入の予定が自動で入る（自分で直せる）
 // 入力欄は作り直さずに、計算結果と表示の切り替えだけを毎回更新する（入力中にカーソルが外れないように）
 
-// 予定設定で扱う24か月（今日の年の1月から）
+// 予定金額で扱う24か月（今日の年の1月から）
 function planMonths() {
   const year = new Date().getFullYear();
   const months = [];
@@ -14,8 +14,8 @@ function planMonths() {
 
 // 決まっている月（今月まで、または全部確定した月）なら { value, source, usesConfirmed } を返す。
 // まだ決まっていない（予定を立てる）月は null。一部だけ確定した先の月も、予定を立てる月
-// 金額：確定したバイト先は確定額、確定していないバイト先はカレンダー＋仮シフト。どちらもない月だけ予定設定
-//   全部確定した月は確定額（予定設定は入力できない）
+// 金額：確定したバイト先は確定額、確定していないバイト先はカレンダー＋仮シフト。どちらもない月だけ予定金額
+//   全部確定した月は確定額（予定金額は入力できない）
 function fixedInfoOf(ctx, d) {
   const key = monthKey(d);
   const thisMonth = monthKey(new Date());
@@ -25,7 +25,7 @@ function fixedInfoOf(ctx, d) {
   return {
     value: x.value,                // 3か月平均に使う額（平均外は除く）
     valueAll: monthInfo(ctx.income, ctx.plans, key, false, "calendar").value, // 年の合計に使う額（平均外も含む）
-    source: sourceText(x),         // 「確定」「一部確定」「カレンダー」「予定設定」など
+    source: sourceText(x),         // 「確定」「一部確定」「カレンダー」「予定金額」など
     // 確定額を使うか（使うなら入力欄を出さない）。今月までの月は、確定・自動確定・見込みを使う
     usesConfirmed: x.allConfirmed || key <= thisMonth,
   };
@@ -66,7 +66,7 @@ function buildPlan(container, ctx, onChange) {
     onChange();
   };
 
-  // --- 上限（勤怠設定と同じ値。ここでも直せる） ---
+  // --- 上限（バイト先設定と同じ値。ここでも直せる） ---
   const monthLimitInput = numberInput(loadLimit(), 0);
   monthLimitInput.step = 1000;
   monthLimitInput.onchange = () => {
@@ -93,10 +93,10 @@ function buildPlan(container, ctx, onChange) {
       "2.「稼ぎたさから案を作る」を押すと、3か月平均と年の合計が上限を超えないことを一番に守って、来月から先の収入の予定が入ります。" +
       "枠を守るか、多く稼ぐかは下の切り替えで選べます。",
       "3. 入った金額は自分で直せます。今月までの月と、全部のバイト先が確定した月は、確定額（自動確定・見込みを含む）を使うので入力できません。" +
-      "来月から先の月でも、カレンダーか仮シフトにシフトがある月は、予定設定ではなくシフトの額を計算に使います（入力欄の下に出ます）。",
+      "来月から先の月でも、カレンダーか仮シフトにシフトがある月は、予定金額ではなくシフトの額を計算に使います（入力欄の下に出ます）。",
       "収入確定をした後にもう一度押すと、確定した金額をもとに、先の月の案を作り直します。",
       "3か月平均：先々月・先月・その月の3か月の収入の平均です（例：12月の行は10月・11月・12月の平均）。" +
-      "3か月平均には、勤怠設定で平均に入れないバイト先の分は入れません。年の合計には平均外の分も入れます。" +
+      "3か月平均には、バイト先設定で平均に入れないバイト先の分は入れません。年の合計には平均外の分も入れます。" +
       "決まっている月で平均外の分があるときは、金額の下に「平均外も含めると」の額を出します。マウスを乗せると計算式が出ます。",
       "各月の金額：" + MONTH_VALUE_TEXT,
     ], "plan"),
@@ -193,7 +193,7 @@ function refreshPlan(container, ctx) {
   const limit = loadLimit();
   const yearLimit = loadYearLimit();
 
-  // 勤怠設定で上限が変えられていたら、こちらの入力欄にも反映する（入力中の欄はそのまま）
+  // バイト先設定で上限が変えられていたら、こちらの入力欄にも反映する（入力中の欄はそのまま）
   for (const [input, value] of [[container.limitInputs.month, limit], [container.limitInputs.year, yearLimit]]) {
     if (document.activeElement !== input) input.value = value;
   }
@@ -243,12 +243,12 @@ function refreshPlan(container, ctx) {
       else if (plan > hi) r.bandNote.textContent = "枠より多い";
     }
 
-    // 来月から先の月：シフト（カレンダー・仮シフト）や確定があって、予定設定ではなくその額を使う月だけ書く
+    // 来月から先の月：シフト（カレンダー・仮シフト）や確定があって、予定金額ではなくその額を使う月だけ書く
     r.usedNote.textContent = "";
     if (fixed === null) {
       const now = monthInfo(income, plans, r.key, true, "calendar");
       const s = sourceText(now);
-      if (s !== "予定設定" && s !== "―") {
+      if (s !== "予定金額" && s !== "―") {
         // 3か月平均に使う額（平均外のバイト先は除く）。平均外の分があれば、年の合計に使う額も出す
         // 平均外のバイト先しかない月は、下の「平均外も含めると」で分かるので、もと（平均外のみ）は書かない
         const sourcePart = now.outsideOnly ? "" : `（${sourceName(now)}）`;
