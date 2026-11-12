@@ -140,6 +140,7 @@ dialog.time-picker { width: min(300px, calc(100vw - 48px)); }
 .times-day.sun .times-weekday { color: #d93025; }
 .times-lines { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
 .time-row-inline { display: flex; align-items: center; gap: 4px; }
+.times-work { margin-left: 4px; min-width: 5.8em; white-space: nowrap; } /* 幅をそろえて × の位置をそろえる */
 .times-copy { margin-top: 8px; font-size: 0.85rem; }
 
 /* 予定設定・収入確定：カレンダーの代わりに真ん中に出す（右の集計はそのまま） */

@@ -47,6 +47,7 @@ function renderShiftTimes(container) {
     "シフトや仮シフトを追加するとき、最初から入っている時間を、時給のバイト先ごと・曜日ごとに決められます。",
     "「＋ 時間」で、1日に2回・3回のシフトの時間も決められます（追加の画面で時間1・時間2…として入ります）。",
     "空いている曜日と日給のバイト先は、前回そのバイト先で入れた時間が入ります。",
+    "時間の右の数字は働く時間です（バイト先設定の休憩を引いた時間）。",
   ], "shift-times"));
 
   if (workplaces.length === 0) {
@@ -89,6 +90,17 @@ function renderShiftTimes(container) {
         const line = el("div", "time-row-inline");
         const s = timeInput(t.start);
         const e = timeInput(t.end);
+        // 働く時間（拘束時間からバイト先設定の休憩を引いたもの）を時間の右に出す
+        const workText = el("span", "times-work muted small");
+        const showWork = () => {
+          workText.textContent = "";
+          if (!s.value || !e.value) return;
+          const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+          let span = toMin(e.value) - toMin(s.value);
+          if (span <= 0) span += 24 * 60; // 終わりが始まり以前なら次の日に終わる
+          const breakMin = Math.min(span, Math.round((wp.breakHours || 0) * 60));
+          workText.textContent = formatHours(span - breakMin);
+        };
         const save = () => {
           const list = [...(byDay[key] || [])];
           list[j] = { start: s.value, end: e.value };
@@ -96,10 +108,12 @@ function renderShiftTimes(container) {
           if (list.every(x => !x.start && !x.end)) delete byDay[key];
           saveShiftTimes(all);
           refreshButtons();
+          showWork();
         };
         s.onchange = save;
         e.onchange = save;
-        line.append(s, "〜", e);
+        line.append(s, "〜", e, workText);
+        showWork();
         // × ：この時間を消す
         const del = el("button", "icon-btn remove-time", "×");
         del.type = "button";
