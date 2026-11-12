@@ -54,46 +54,33 @@ function payDatesText(payDates) {
 }
 
 // 時刻の入力欄（5分単位）
-// iPhone の時刻の入力欄は1分きざみでしか選べないので、「時」と「分」の2つの選択欄にする
-// 分は 00・05・10…55 だけ。ふつうの入力欄と同じように .value（"17:05" か ""）・.disabled が使え、
-// 選ぶと input・change が起きる（中の選択欄の知らせが外まで伝わる）
+// iPhone の時刻の入力欄は1分きざみでしか選べないので、00:00・00:05 … 23:55 の時刻を並べた
+// 1つの選択欄にする（くるくるは1本）。.value は "17:05" か ""（未入力）
+const TIME_CHOICES = [];
+for (let m = 0; m < 24 * 60; m += 5) {
+  TIME_CHOICES.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+}
+const nativeSelectValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
+
 function timeInput(value) {
-  const box = el("span", "time-select");
-  const pad = (n) => String(n).padStart(2, "0");
-  const hour = el("select");
-  hour.append(option("", "--"));
-  for (let h = 0; h < 24; h++) hour.append(option(pad(h), pad(h)));
-  const minute = el("select");
-  minute.append(option("", "--"));
-  for (let m = 0; m < 60; m += 5) minute.append(option(pad(m), pad(m)));
-  hour.setAttribute("aria-label", "時");
-  minute.setAttribute("aria-label", "分");
-  box.append(hour, el("span", "time-colon", ":"), minute);
-
-  // 時を選んで分が空なら「00」にする（外に知らせが伝わる前に入れておく）
-  for (const type of ["input", "change"]) {
-    hour.addEventListener(type, () => { if (hour.value && !minute.value) minute.value = "00"; });
-  }
-
-  Object.defineProperty(box, "value", {
-    get: () => (hour.value && minute.value ? `${hour.value}:${minute.value}` : ""),
+  const s = el("select", "time-select");
+  s.setAttribute("aria-label", "時刻");
+  s.append(option("", "--:--"));
+  for (const t of TIME_CHOICES) s.append(option(t, t));
+  // Google カレンダーの予定が 10:03 のように5分きざみでないときは、その時刻も選べるようにしてから入れる
+  Object.defineProperty(s, "value", {
+    get: () => nativeSelectValue.get.call(s),
     set: (v) => {
-      const [h, m] = v ? String(v).slice(0, 5).split(":") : ["", ""];
-      hour.value = h || "";
-      // Google カレンダーの予定が 10:03 のように5分きざみでないときは、その分も選べるようにする
-      if (m && ![...minute.options].some(o => o.value === m)) {
-        const after = [...minute.options].find(o => o.value > m);
-        minute.insertBefore(option(m, m), after || null);
+      const t = v ? String(v).slice(0, 5) : "";
+      if (t && ![...s.options].some(o => o.value === t)) {
+        const after = [...s.options].find(o => o.value > t);
+        s.insertBefore(option(t, t), after || null);
       }
-      minute.value = m || "";
+      nativeSelectValue.set.call(s, t);
     },
   });
-  Object.defineProperty(box, "disabled", {
-    get: () => hour.disabled,
-    set: (d) => { hour.disabled = minute.disabled = !!d; },
-  });
-  box.value = value;
-  return box;
+  s.value = value;
+  return s;
 }
 
 // 選択肢（<option>）を作る
