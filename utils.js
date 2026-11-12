@@ -84,23 +84,40 @@ function timeInput(value) {
 
 // ===== 「＋ 時間」で足す時間を決める（シフトの追加・編集の画面で使う） =====
 // current：今入っている時間 [{ start, end }]、defaults：シフト時間設定のその曜日の時間
-// ・シフト時間設定の時間のうち、まだ入っていないものがあれば、それ（早いほうから）
-// ・なければ、一番遅い時間の終わりの1時間後から2時間（夜中の0時を越えるときは空）
-//   after を渡したときは、一番遅い時間ではなく after（押したシフトの時間）の終わりの1時間後から2時間
+// ・シフト時間設定の時間のうち、まだ入っていなくて、今の時間と重ならないものがあれば、それ（早いほうから）
+// ・なければ、押したシフト（after。なければ一番遅い時間）の終わりの1時間後から2時間
+//   （例：20:15 に終わるシフトなら 21:15〜23:15、12:30 なら 13:30〜15:30）
+// ・それも今の時間と重なるなら、重なった時間の終わりの1時間後から2時間…と、重ならなくなるまでずらす
+// ・夜中の0時より後に始まってしまうときは空
 function nextTimeRange(current, defaults, after) {
   const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
   const toText = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  // 時間 → 分の範囲（終わりが始まり以前なら次の日に終わる）
+  const range = (t) => {
+    const s = toMin(t.start);
+    let e = toMin(t.end);
+    if (e <= s) e += 24 * 60;
+    return { s, e };
+  };
   const filled = current.filter(t => t.start && t.end);
-  const missing = defaults.filter(d => !filled.some(t => t.start === d.start && t.end === d.end));
+  const ranges = filled.map(range);
+  const overlapping = (r) => ranges.find(x => r.s < x.e && x.s < r.e);
+
+  const missing = defaults.filter(d =>
+    !filled.some(t => t.start === d.start && t.end === d.end) && !overlapping(range(d)));
   if (missing.length > 0) return { ...missing[0] };
   if (filled.length === 0) return { start: "", end: "" };
-  const last = after && after.start && after.end
+
+  const base = after && after.start && after.end
     ? after
     : [...filled].sort((a, b) => a.start.localeCompare(b.start))[filled.length - 1];
-  let endMin = toMin(last.end);
-  if (endMin <= toMin(last.start)) endMin += 24 * 60; // 夜勤で次の日に終わる
-  const from = endMin + 60;
-  if (from >= 24 * 60) return { start: "", end: "" };
+  let from = range(base).e + 60;
+  for (;;) {
+    if (from >= 24 * 60) return { start: "", end: "" };
+    const hit = overlapping({ s: from, e: from + 120 });
+    if (!hit) break;
+    from = hit.e + 60; // 重なった時間の終わりの1時間後にずらす
+  }
   return { start: toText(from), end: toText((from + 120) % (24 * 60)) };
 }
 
