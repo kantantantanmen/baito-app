@@ -198,6 +198,38 @@ function makeChip(item) {
   return chip;
 }
 
+// 同じ日・同じバイト先（と役職）のシフトを1つにまとめる（1日に2回入るときなど）
+// シフトどうし・仮シフトどうしだけをまとめる。バイトでない予定はまとめない → [[item, ...], ...]
+function groupSameShifts(list) {
+  const groups = [];
+  const byKey = {};
+  for (const item of list) {
+    if (!item.shift || item.event.start.date) {
+      groups.push([item]);
+      continue;
+    }
+    const kind = item.tentative ? `t${isPastTentative(item.tentative) ? "p" : ""}` : "s";
+    const key = `${kind}|${item.shift.place}|${item.shift.role}`;
+    if (byKey[key]) byKey[key].push(item);
+    else groups.push(byKey[key] = [item]);
+  }
+  return groups;
+}
+
+// まとめた予定の表示。1件ならいつもと同じ。2件以上なら名前を1つだけ出し、
+// 押すとその日の一覧を出す（一覧からそれぞれを開ける）
+function makeGroupChip(group) {
+  const chip = makeChip(group[0]);
+  if (group.length === 1) return chip;
+  chip.onclick = null; // 日付のマスを押したのと同じ（下の一覧が出る）
+  if (group.some(x => x.shift.bonus) && !chip.querySelector(".bonus-mark")) {
+    chip.append(el("span", "bonus-mark", "＋"));
+  }
+  const total = group.reduce((s, x) => s + x.shift.pay, 0);
+  chip.title = `${group.map(x => formatEvent(x.event)).join("、")}  ${group[0].shift.place}  合計 ${formatYen(total)}`;
+  return chip;
+}
+
 // ===== 長押しと、指を滑らせる操作 =====
 // 長押しや指を滑らせたあと、指を離したときの「押した」は無視する（追加の画面がすぐ閉じたりしないように）
 let swallowClick = false;
@@ -281,8 +313,8 @@ function renderGrid(byDay) {
 
     cell.appendChild(el("div", "day-number", String(d.getDate())));
 
-    for (const item of byDay[key] || []) {
-      cell.appendChild(makeChip(item));
+    for (const group of groupSameShifts(byDay[key] || [])) {
+      cell.appendChild(makeGroupChip(group));
     }
 
     grid.appendChild(cell);
