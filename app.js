@@ -377,15 +377,15 @@ function renderDayList() {
     const when = el("span", "tentative-when");
     if (tentative) when.append(el("span", "time-prefix", "仮"));
     if (multi) {
-      // 時間ごとに押せる（押した時間のシフトを直す画面が開く）
-      when.classList.add("day-times");
-      group.forEach((x, i) => {
-        if (i > 0) when.append(el("span", "time-sep", "｜"));
+      // 時間は1行に2つずつ並べ、3つ目からは次の行の1つ目の下にそろえる。それぞれ押せる（押した時間を直す画面が開く）
+      const grid = el("span", "day-times");
+      for (const x of group) {
         const seg = el("button", "time-seg", timeOf(x.event));
         seg.type = "button";
         seg.onclick = () => open(x);
-        when.append(seg);
-      });
+        grid.append(seg);
+      }
+      when.append(grid);
     } else {
       when.append(timeOf(event));
     }

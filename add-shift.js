@@ -164,23 +164,17 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     renumberTimes();
     update();
   };
-  // 時間の欄を1つ足す。values があればその時間を入れる（なければ前の時間から決める）
+  // 時間の欄を1つ足す。values があればその時間を入れる（なければ nextTimeRange で決める：
+  // シフト時間設定の時間でまだ入っていないもの、なければ一番遅い時間の1時間後から2時間）
   const addTimeRow = (values) => {
-    // 前の時間の1時間あとから、同じ長さで入れておく（例：10:00〜13:00 のあとなら 14:00〜17:00）
-    // 夜中の0時を越えてしまうときは、終わりを空にしておく
-    const prev = extraTimes.length > 0 ? extraTimes[extraTimes.length - 1] : { start, end };
-    const s = timeInput(values ? values.start : "");
-    const e = timeInput(values ? values.end : "");
-    if (!values && prev.start.value && prev.end.value) {
-      const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
-      const toText = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-      const len = toMin(prev.end.value) - toMin(prev.start.value);
-      const from = toMin(prev.end.value) + 60;
-      if (len > 0 && from < 24 * 60) {
-        s.value = toText(from);
-        if (from + len < 24 * 60) e.value = toText(from + len);
-      }
+    if (!values) {
+      const current = [{ start: start.value, end: end.value },
+        ...extraTimes.map(x => ({ start: x.start.value, end: x.end.value }))];
+      const defaults = isHourly() && kind === "date" ? defaultTimesFor(place.value, date.value) : [];
+      values = nextTimeRange(current, defaults);
     }
+    const s = timeInput(values.start);
+    const e = timeInput(values.end);
     const remove = removeButton();
     const row = field("", s, "〜", e, remove);
     row.classList.add("time-row");
@@ -199,6 +193,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   };
   addTimeButton.onclick = () => {
     addTimeRow();
+    // 早い時間が時間1になるように並べ直す
+    sortTimeInputs([{ start, end }, ...extraTimes]);
     update();
   };
   // シフト時間設定で、このバイト先・この曜日の時間が決めてあれば入れる（時間1・時間2…）

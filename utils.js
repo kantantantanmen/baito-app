@@ -82,6 +82,36 @@ function timeInput(value) {
   return b;
 }
 
+// ===== 「＋ 時間」で足す時間を決める（シフトの追加・編集の画面で使う） =====
+// current：今入っている時間 [{ start, end }]、defaults：シフト時間設定のその曜日の時間
+// ・シフト時間設定の時間のうち、まだ入っていないものがあれば、それ（早いほうから）
+// ・なければ、一番遅い時間の終わりの1時間後から2時間（夜中の0時を越えるときは空）
+function nextTimeRange(current, defaults) {
+  const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+  const toText = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const filled = current.filter(t => t.start && t.end);
+  const missing = defaults.filter(d => !filled.some(t => t.start === d.start && t.end === d.end));
+  if (missing.length > 0) return { ...missing[0] };
+  if (filled.length === 0) return { start: "", end: "" };
+  const last = [...filled].sort((a, b) => a.start.localeCompare(b.start))[filled.length - 1];
+  let endMin = toMin(last.end);
+  if (endMin <= toMin(last.start)) endMin += 24 * 60; // 夜勤で次の日に終わる
+  const from = endMin + 60;
+  if (from >= 24 * 60) return { start: "", end: "" };
+  return { start: toText(from), end: toText((from + 120) % (24 * 60)) };
+}
+
+// 時間の欄を早い順に並べ直す（早い時間が時間1になる）。pairs：[{ start: 時刻の欄, end: 時刻の欄 }]
+// 空の時間は後ろに回す
+function sortTimeInputs(pairs) {
+  const values = pairs.map(p => ({ start: p.start.value, end: p.end.value }));
+  values.sort((a, b) => (a.start || "99").localeCompare(b.start || "99"));
+  pairs.forEach((p, i) => {
+    p.start.value = values[i].start;
+    p.end.value = values[i].end;
+  });
+}
+
 // 時刻を選ぶ画面（「時」と「分」の2本のくるくる）。onDone(時刻) は「完了」を押したとき
 const WHEEL_ITEM = 40; // くるくるの1段の高さ（px）
 function openTimePicker(value, onDone) {

@@ -105,20 +105,14 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
     extraTimes.forEach((x, i) => { x.row.querySelector(".field-label").textContent = `時間${i + 2}`; });
   };
   addTimeButton.onclick = () => {
-    // 前の時間の1時間あとから、同じ長さで入れておく（夜中の0時を越えるときは終わりを空にする）
-    const prev = extraTimes.length > 0 ? extraTimes[extraTimes.length - 1] : { start: startInput, end: endInput };
-    const s = timeInput("");
-    const e = timeInput("");
-    const toMin = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
-    const toText = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-    if (prev.start.value && prev.end.value) {
-      const len = toMin(prev.end.value) - toMin(prev.start.value);
-      const from = toMin(prev.end.value) + 60;
-      if (len > 0 && from < 24 * 60) {
-        s.value = toText(from);
-        if (from + len < 24 * 60) e.value = toText(from + len);
-      }
-    }
+    // シフト時間設定の時間でまだ入っていないものがあればそれ、なければ一番遅い時間の1時間後から2時間
+    const current = [{ start: startInput.value, end: endInput.value },
+      ...extraTimes.map(x => ({ start: x.start.value, end: x.end.value }))];
+    const shiftNow = eventToShift(currentEvent(), workplaces, currentEdit());
+    const defaults = shiftNow ? defaultTimesFor(shiftNow.place, dayInput.value || dateKey(start)) : [];
+    const next = nextTimeRange(current, defaults);
+    const s = timeInput(next.start);
+    const e = timeInput(next.end);
     const del = el("button", "icon-btn remove-time", "×");
     del.type = "button";
     del.setAttribute("aria-label", "この時間を消す");
@@ -135,6 +129,8 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
     e.oninput = update;
     extraTimes.push(x);
     extraBox.append(row);
+    // 早い時間が時間1になるように並べ直す（時間1が変わったら、「更新」でこの予定の時間も直す）
+    sortTimeInputs([{ start: startInput, end: endInput }, ...extraTimes]);
     renumberTimes();
     update();
   };
