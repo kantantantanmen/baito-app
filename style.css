@@ -527,8 +527,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); } /* 後ろを暗くする *
 .row.strong { font-weight: 600; }
 /* 「＋ 時間」（同じ日に2回目のシフトを足す）と、足した時間を消す × */
 .add-time { padding: 4px 12px; font-size: 0.85rem; color: var(--accent); border-color: var(--accent); }
-.remove-time { font-size: 1rem; padding: 0 4px; color: var(--muted); }
-.preview-sep { border: none; border-top: 1px solid var(--line); margin: 8px 0 4px; }
+.remove-time { font-size: 1.1rem; padding: 0 4px; color: var(--muted); flex-shrink: 0; }
+/* 時間の行は折り返さない（狭い画面では時間の欄を少し縮める） */
+.time-row .field-body { flex-wrap: nowrap; }
+.time-row input[type="time"] { min-width: 0; flex: 0 1 auto; }
 .dialog-buttons { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
 /* 下のボタンは文字を少し小さくして、折り返さずに1行に収める */
 .dialog-buttons button { font-size: 0.85rem; padding: 6px 12px; white-space: nowrap; }

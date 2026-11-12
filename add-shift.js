@@ -135,9 +135,35 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   const addTimeButton = el("button", "add-time", "＋ 時間");
   addTimeButton.type = "button";
   const addTimeField = field("", addTimeButton);
-  const renumberTimes = () => extraTimes.forEach((x, i) => {
-    x.label.textContent = `時間${i + 2}`;
-  });
+  // 消す × は、時間の右側に置く（時間が2つ以上あるときだけ。1つ目の時間にも付ける）
+  const removeButton = () => {
+    const b = el("button", "icon-btn remove-time", "×");
+    b.type = "button";
+    b.setAttribute("aria-label", "この時間を消す");
+    return b;
+  };
+  const mainRemove = removeButton();
+  const mainTimeField = field("時間", start, "〜", end, mainRemove);
+  mainTimeField.classList.add("time-row");
+  // 見出しを「時間」または「時間1・時間2…」にし、× を出すかどうかを決める
+  const renumberTimes = () => {
+    const many = extraTimes.length > 0 && !extraBox.hidden;
+    mainTimeField.querySelector(".field-label").textContent = many ? "時間1" : "時間";
+    mainRemove.hidden = !many;
+    extraTimes.forEach((x, i) => {
+      x.row.querySelector(".field-label").textContent = `時間${i + 2}`;
+    });
+  };
+  // 1つ目の時間を消す：2つ目の時間を1つ目に繰り上げる
+  mainRemove.onclick = () => {
+    const next = extraTimes.shift();
+    if (!next) return;
+    start.value = next.start.value;
+    end.value = next.end.value;
+    next.row.remove();
+    renumberTimes();
+    update();
+  };
   addTimeButton.onclick = () => {
     // 前の時間の1時間あとから、同じ長さで入れておく（例：10:00〜13:00 のあとなら 14:00〜17:00）
     // 夜中の0時を越えてしまうときは、終わりを空にしておく
@@ -154,15 +180,10 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
         if (from + len < 24 * 60) e.value = toText(from + len);
       }
     }
-    // 消す × は、左の「時間2」の横に置く（時間の欄が折り返さないように）
-    const remove = el("button", "icon-btn remove-time", "×");
-    remove.type = "button";
-    remove.setAttribute("aria-label", "この時間を消す");
-    const row = field("", s, "〜", e);
-    const labelBox = row.querySelector(".field-label");
-    const label = el("span");
-    labelBox.append(label, remove);
-    const x = { start: s, end: e, row, label };
+    const remove = removeButton();
+    const row = field("", s, "〜", e, remove);
+    row.classList.add("time-row");
+    const x = { start: s, end: e, row };
     remove.onclick = () => {
       extraTimes.splice(extraTimes.indexOf(x), 1);
       row.remove();
@@ -224,7 +245,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     dateField,
     monthField,
     payMonthField,
-    field("時間", start, "〜", end),
+    mainTimeField,
     extraBox,
     addTimeField,
     field("バイト先", place),
@@ -297,6 +318,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     const canAddTime = isHourly() && !isCount;
     addTimeField.hidden = !canAddTime;
     extraBox.hidden = !canAddTime;
+    renumberTimes();
     add.hidden = !canAddToGoogle || isCount; // 日にちがないので Google カレンダーには入れられない
     // 未定の仮シフトの日付が決まったとき：何回分のうち1回だけ日付ありにするかを書く（前のしくみの分だけ）
     splitNote.hidden = !(splitFrom && !isCount && restCount > 0);
@@ -432,9 +454,19 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
 
     breakInput.placeholder = String(shift.autoBreak);
     breakHint.textContent = `空欄なら勤怠設定どおり（${formatHours(shift.autoBreak)}）`;
-    // 時間を足したときは、上の内訳は「時間1」の分
-    const hasExtras = !isCount && activeExtras().some(x => x.start.value && x.end.value);
-    shiftPreviewRows(preview, shift, hasExtras ? "時間1の合計" : "合計");
+    // 時間を足したときは、全部の時間を足し合わせた内訳と合計を1つだけ出す
+    const extraShifts = isCount ? [] : activeExtras()
+      .filter(x => x.start.value && x.end.value)
+      .map(x => tentativeToShift(extraDraft(x), loadWorkplaces()))
+      .filter(Boolean);
+    const shown = { ...shift };
+    for (const s of extraShifts) {
+      for (const k of ["spanMin", "breakMin", "workMin", "nightMin", "overtimeMin",
+                       "basePay", "allowance", "transport", "bonus", "pay"]) {
+        shown[k] = (shown[k] || 0) + (s[k] || 0);
+      }
+    }
+    shiftPreviewRows(preview, shown);
 
     if (isCount) {
       // 日付が未定：振り込まれる月（日付がないので、日ではなく月だけ出す）
@@ -446,19 +478,6 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       }
     } else {
       addRow(preview, "振込予定日", shortDate(shift.payDate));
-      // 足した時間：1回ずつの給料と、全部の合計（上の内訳は1つ目の時間の分）
-      const extras = activeExtras().filter(x => x.start.value && x.end.value);
-      if (extras.length > 0) {
-        preview.append(el("hr", "preview-sep"));
-        let sum = shift.pay;
-        extras.forEach((x, i) => {
-          const s = tentativeToShift(extraDraft(x), loadWorkplaces());
-          if (!s) return;
-          sum += s.pay;
-          addRow(preview, `時間${i + 2}　${x.start.value}〜${x.end.value}`, formatYen(s.pay));
-        });
-        addRow(preview, `${extras.length + 1}回の合計`, formatYen(sum), "total big");
-      }
     }
   };
   place.onchange = () => {
