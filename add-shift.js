@@ -264,16 +264,16 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     (tentative ? "「シフトとして追加」もできるようになります。" : "") +
     (keptCount > 1 ? `（この仮シフトは前のしくみで入れた${keptCount}回分です）` : ""));
 
-  // 項目の順番は、予定を押した画面と同じ（日付 → 時間 → バイト先 → 役職 → 休憩 → ボーナス → メモ）
+  // 項目の順番は、予定を押した画面と同じ（日付 → バイト先 → 役職 → 時間 → 休憩 → ボーナス → メモ）
   form.append(
     dateField,
     monthField,
     payMonthField,
+    field("バイト先", place),
+    roleField,
     mainTimeField,
     extraBox,
     addTimeField,
-    field("バイト先", place),
-    roleField,
     field("休憩", breakInput, "分", breakHint),
     field("ボーナス", bonus, "円"),
     field("メモ", bonusNote),

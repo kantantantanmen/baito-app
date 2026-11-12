@@ -38,7 +38,7 @@ function eventTimes(day, startTime, endTime) {
 }
 
 // ===== シフトの画面で共通の部品（シフトの追加・編集、仮シフトの追加・編集で同じ形にする） =====
-// 項目の順番：日付 → 時間 → バイト先 → 役職 → 休憩 → ボーナス → メモ → 計算結果 → ボタン
+// 項目の順番：日付 → バイト先 → 役職 → 時間 → 休憩 → ボーナス → メモ → 計算結果 → ボタン
 // ボタンの順番（左から）：シフトとして追加 → 更新 → 削除 → 閉じる
 
 // 画面の見出し。開いたときに入力欄（日付など）ではなく見出しを選んでおく
@@ -138,7 +138,7 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
     renumberTimes();
     update();
   };
-  form.append(field("日付", dayInput), mainTimeField, extraBox, addTimeField);
+  form.append(field("日付", dayInput)); // 時間の欄は、バイト先・役職の下に置く（下で足す）
   // 日時が元の予定から変わったか
   const timeChanged = () => canWrite &&
     (dayInput.value !== dateKey(start) || startInput.value !== hhmm(start) || endInput.value !== hhmm(end));
@@ -192,6 +192,9 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
   form.append(
     field("バイト先", place),
     roleField,
+    mainTimeField,
+    extraBox,
+    addTimeField,
     field("休憩", breakInput, "分", breakHint),
     field("ボーナス", bonus, "円"),
     field("メモ", bonusNote),

@@ -120,8 +120,8 @@ function renderShiftTimes(container) {
       card.append(row);
     }
 
-    // 月曜の時間を、ほかの平日（火〜金）にも入れる
-    const copy = el("button", "", "月曜と同じ時間を火〜金にも入れる");
+    // 月曜の時間を、ほかの曜日（火〜日）全部にも入れる
+    const copy = el("button", "", "月曜と同じ時間をすべての曜日に入れる");
     copy.type = "button";
     copy.className = "times-copy";
     copy.onclick = () => {
@@ -130,7 +130,7 @@ function renderShiftTimes(container) {
         alert("先に月曜の時間を入れてください。");
         return;
       }
-      for (const wd of ["2", "3", "4", "5"]) byDay[wd] = mon.map(t => ({ ...t }));
+      for (const wd of ["2", "3", "4", "5", "6", "0"]) byDay[wd] = mon.map(t => ({ ...t }));
       saveShiftTimes(all);
       rerender();
     };
