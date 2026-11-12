@@ -54,33 +54,93 @@ function payDatesText(payDates) {
 }
 
 // 時刻の入力欄（5分単位）
-// iPhone の時刻の入力欄は1分きざみでしか選べないので、00:00・00:05 … 23:55 の時刻を並べた
-// 1つの選択欄にする（くるくるは1本）。.value は "17:05" か ""（未入力）
-const TIME_CHOICES = [];
-for (let m = 0; m < 24 * 60; m += 5) {
-  TIME_CHOICES.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
-}
-const nativeSelectValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
-
+// iPhone の時刻の入力欄は1分きざみでしか選べないので、自分で作った選ぶ画面を使う
+// 欄を押すと、「時」と「分（00・05…55）」の2本のくるくるが並んだ小さい画面が出て、「完了」で決まる
+// ふつうの入力欄と同じように .value（"17:05" か ""）・.disabled が使え、決めると input・change が起きる
 function timeInput(value) {
-  const s = el("select", "time-select");
-  s.setAttribute("aria-label", "時刻");
-  s.append(option("", "--:--"));
-  for (const t of TIME_CHOICES) s.append(option(t, t));
-  // Google カレンダーの予定が 10:03 のように5分きざみでないときは、その時刻も選べるようにしてから入れる
-  Object.defineProperty(s, "value", {
-    get: () => nativeSelectValue.get.call(s),
+  const b = el("button", "time-select");
+  b.type = "button"; // フォームの送信ボタンにしない
+  b.setAttribute("aria-label", "時刻");
+  let current = "";
+  Object.defineProperty(b, "value", {
+    get: () => current,
     set: (v) => {
-      const t = v ? String(v).slice(0, 5) : "";
-      if (t && ![...s.options].some(o => o.value === t)) {
-        const after = [...s.options].find(o => o.value > t);
-        s.insertBefore(option(t, t), after || null);
-      }
-      nativeSelectValue.set.call(s, t);
+      current = v ? String(v).slice(0, 5) : "";
+      b.textContent = current || "--:--";
     },
   });
-  s.value = value;
-  return s;
+  b.value = value;
+  b.addEventListener("click", () => {
+    if (b.disabled) return;
+    openTimePicker(b.value, (picked) => {
+      if (picked === b.value) return;
+      b.value = picked;
+      b.dispatchEvent(new Event("input", { bubbles: true }));
+      b.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  });
+  return b;
+}
+
+// 時刻を選ぶ画面（「時」と「分」の2本のくるくる）。onDone(時刻) は「完了」を押したとき
+const WHEEL_ITEM = 40; // くるくるの1段の高さ（px）
+function openTimePicker(value, onDone) {
+  const pad = (n) => String(n).padStart(2, "0");
+  // 空のときは 12:00 から始める
+  const [h0, m0] = (value || "12:00").split(":");
+  const hours = Array.from({ length: 24 }, (_, i) => pad(i));
+  const minutes = Array.from({ length: 12 }, (_, i) => pad(i * 5));
+  // Google カレンダーの予定が 10:03 のように5分きざみでないときは、その分も並べる
+  if (!minutes.includes(m0)) {
+    minutes.push(m0);
+    minutes.sort();
+  }
+
+  const picker = el("dialog", "time-picker");
+  const head = el("div", "tp-head");
+  const cancel = el("button", "tp-cancel", "やめる");
+  const done = el("button", "tp-done", "完了");
+  cancel.type = done.type = "button";
+  head.append(cancel, done);
+
+  const wheels = el("div", "tp-wheels");
+  wheels.append(el("div", "tp-band")); // 真ん中の選んでいる段の色
+  const makeWheel = (list, selected) => {
+    const col = el("div", "tp-col");
+    col.append(el("div", "tp-spacer"));
+    list.forEach((v, i) => {
+      const item = el("div", "tp-item", v);
+      item.onclick = () => col.scrollTo({ top: i * WHEEL_ITEM, behavior: "smooth" });
+      col.append(item);
+    });
+    col.append(el("div", "tp-spacer"));
+    const index = () => Math.min(list.length - 1, Math.max(0, Math.round(col.scrollTop / WHEEL_ITEM)));
+    return { col, start: Math.max(0, list.indexOf(selected)), get: () => list[index()] };
+  };
+  const hw = makeWheel(hours, h0);
+  const mw = makeWheel(minutes, m0);
+  wheels.append(hw.col, el("div", "tp-colon", ":"), mw.col);
+  picker.append(head, wheels);
+
+  const close = () => {
+    picker.close();
+    picker.remove();
+  };
+  cancel.onclick = close;
+  done.onclick = () => {
+    const picked = `${hw.get()}:${mw.get()}`;
+    close();
+    onDone(picked);
+  };
+  // 外側（暗い部分）を押したら、やめる
+  picker.addEventListener("click", (e) => { if (e.target === picker) close(); });
+  picker.addEventListener("cancel", (e) => { e.preventDefault(); close(); });
+
+  document.body.append(picker);
+  picker.showModal(); // シフトの画面の上に重ねて出す
+  hw.col.scrollTop = hw.start * WHEEL_ITEM;
+  mw.col.scrollTop = mw.start * WHEEL_ITEM;
+  done.focus();
 }
 
 // 選択肢（<option>）を作る

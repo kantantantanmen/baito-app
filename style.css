@@ -54,22 +54,45 @@ button {
   border: 1px solid var(--line);
   border-radius: 6px;
 }
-/* 時刻（5分単位）：時刻を並べた1つの選択欄。矢印は出さず、時刻の入力欄と同じ見た目にする */
-select.time-select {
+/* 時刻（5分単位）：押すと「時」「分」のくるくるが出る欄。時刻の入力欄と同じ見た目にする */
+button.time-select {
   font: inherit;
   padding: 5px 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
   color: inherit;
-  appearance: none;
-  -webkit-appearance: none;
-  text-align: center;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
   cursor: pointer;
 }
-select.time-select:disabled { background: #f1f3f4; color: var(--muted); cursor: default; }
+button.time-select:disabled { background: #f1f3f4; color: var(--muted); cursor: default; }
+
+/* 時刻を選ぶ画面 */
+dialog.time-picker { width: min(300px, calc(100vw - 48px)); }
+.tp-head { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.tp-head button { border: none; background: none; font-size: 1rem; padding: 6px 10px; }
+.tp-head button:focus { outline: none; }
+.tp-done { color: var(--accent); font-weight: 700; }
+.tp-cancel { color: var(--muted); }
+.tp-wheels { position: relative; display: flex; justify-content: center; align-items: center; height: 200px; }
+.tp-band { position: absolute; left: 16px; right: 16px; top: 80px; height: 40px; background: #eef5f2; border-radius: 8px; pointer-events: none; }
+.tp-col {
+  position: relative;
+  width: 72px;
+  height: 200px;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  /* 上下の端をうすくする */
+  mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+}
+.tp-col::-webkit-scrollbar { display: none; }
+.tp-spacer { height: 80px; }
+.tp-item { height: 40px; line-height: 40px; text-align: center; font-size: 1.3rem; scroll-snap-align: center; cursor: pointer; font-variant-numeric: tabular-nums; }
+.tp-colon { position: relative; font-size: 1.3rem; font-weight: 600; padding: 0 4px; }
 
 /* ===== 左・真ん中・右の3列 ===== */
 .layout {
