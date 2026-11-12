@@ -68,6 +68,9 @@ button.time-select {
 }
 button.time-select:disabled { background: #f1f3f4; color: var(--muted); cursor: default; }
 
+/* 画面（シフトの画面・時刻を選ぶ画面）が開いているあいだは、後ろの画面をスクロールさせない */
+html:has(dialog[open]), body:has(dialog[open]) { overflow: hidden; }
+
 /* 時刻を選ぶ画面 */
 dialog.time-picker { width: min(300px, calc(100vw - 48px)); }
 .tp-head { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--line); }
@@ -79,9 +82,11 @@ dialog.time-picker { width: min(300px, calc(100vw - 48px)); }
 .tp-band { position: absolute; left: 16px; right: 16px; top: 80px; height: 40px; background: #eef5f2; border-radius: 8px; pointer-events: none; }
 .tp-col {
   position: relative;
-  width: 72px;
+  flex: 1; /* くるくるを左右いっぱいに広げる（数字から少しずれた所を触っても回る） */
   height: 200px;
   overflow-y: scroll;
+  overscroll-behavior: contain; /* 端まで回しても、後ろの画面を動かさない */
+  touch-action: pan-y;
   scroll-snap-type: y mandatory;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -425,6 +430,9 @@ button.day-row:hover { background: #f1f3f4; }
 .time-seg { border: none; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
             text-decoration: underline dotted; text-underline-offset: 3px; }
 .time-sep { margin: 0 4px; opacity: 0.5; }
+/* 時間が多くて1行に入らないときは、時間のほうを折り返す（バイト先の名前と金額は必ず出す） */
+.day-row.multi .tentative-when { flex: 1 1 0; min-width: 0; }
+.day-row.multi .tentative-what { flex: 0 0 auto; }
 .time-prefix { margin-right: 0.3em; }
 
 /* 予定1件分 */

@@ -134,6 +134,10 @@ function openTimePicker(value, onDone) {
   };
   // 外側（暗い部分）を押したら、やめる
   picker.addEventListener("click", (e) => { if (e.target === picker) close(); });
+  // くるくる以外（見出し・「:」・外側）を指で動かしても、後ろの画面は動かさない
+  picker.addEventListener("touchmove", (e) => {
+    if (!e.target.closest(".tp-col")) e.preventDefault();
+  }, { passive: false });
   picker.addEventListener("cancel", (e) => { e.preventDefault(); close(); });
 
   document.body.append(picker);

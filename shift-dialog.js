@@ -225,7 +225,8 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
       save.textContent = "更新中...";
       deleteError.textContent = "";
       try {
-        await updateEvent(item.cal.id, original.id, eventTimes(dayInput.value, startInput.value, endInput.value));
+        const updated = await updateEvent(item.cal.id, original.id, eventTimes(dayInput.value, startInput.value, endInput.value));
+        putEventLocally(item.cal, updated); // 読み直しを待たずに、カレンダーの表示を変える
       } catch (err) {
         deleteError.textContent = err.message;
         save.disabled = false;
@@ -239,33 +240,39 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
     else delete all[key]; // 何も入力がなければ保存しておく必要がない
     saveEdits(all);
 
-    // 足した時間：それぞれ別の予定として Google カレンダーに入れる（入れられた分は欄から消す）
+    // 足した時間：それぞれ別の予定として Google カレンダーに入れる（全部いっしょに送る。入れられた分は欄から消す）
     if (extras.length > 0) {
       save.disabled = true;
       save.textContent = "追加中...";
-      try {
-        for (const x of [...extras]) {
-          const made = await createEvent(item.cal.id, extraEvent(x));
-          const ex = extraEdit();
-          if (made && made.id && Object.keys(ex).length > 0) {
-            const edits = loadEdits();
-            edits[`${item.cal.id}|${made.id}`] = ex;
-            saveEdits(edits);
-          }
-          extraTimes.splice(extraTimes.indexOf(x), 1);
-          x.row.remove();
+      const ex = extraEdit();
+      const results = await Promise.allSettled([...extras].map(async (x) => {
+        const made = await createEvent(item.cal.id, extraEvent(x));
+        if (made && made.id && Object.keys(ex).length > 0) {
+          const edits = loadEdits();
+          edits[`${item.cal.id}|${made.id}`] = ex;
+          saveEdits(edits);
         }
-      } catch (err) {
-        deleteError.textContent = err.message;
+        putEventLocally(item.cal, made); // 読み直しを待たずに、カレンダーに出す
+        extraTimes.splice(extraTimes.indexOf(x), 1);
+        x.row.remove();
+      }));
+      const failed = results.find(r => r.status === "rejected");
+      if (failed) {
+        deleteError.textContent = failed.reason.message;
         save.disabled = false;
         save.textContent = "更新";
         renumberTimes();
+        renderAll();
         return;
       }
     }
     shiftDialog.close();
-    if (changed || extras.length > 0) onReload(); // 予定を取り直す
-    else onChange();
+    if (changed || extras.length > 0) {
+      renderAll(); // 手元の予定で先に描き直す
+      onReload();  // そのあと Google カレンダーから読み直す
+    } else {
+      onChange();
+    }
   };
   const buttons = el("div", "dialog-buttons");
   buttons.append(save);
@@ -284,6 +291,8 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
         delete all[key]; // この予定用の入力も要らなくなる
         saveEdits(all);
         shiftDialog.close();
+        removeEventLocally(item.cal.id, original.id);
+        renderAll(); // 読み直しを待たずに消す
         onReload();
       } catch (err) {
         deleteError.textContent = err.message;

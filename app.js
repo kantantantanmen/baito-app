@@ -367,7 +367,7 @@ function renderDayList() {
     const multi = group.length > 1;
     const past = tentative && isPastTentative(tentative);
     const row = el(allDay || multi ? "div" : "button",
-      `day-row${tentative ? " tentative-item" : shift ? " shift" : ""}${past ? " past" : ""}`);
+      `day-row${tentative ? " tentative-item" : shift ? " shift" : ""}${past ? " past" : ""}${multi ? " multi" : ""}`);
     const name = shift
       ? [shift.place, shift.role].filter(Boolean).join(" ")
       : event.summary || "（タイトルなし）";
@@ -619,6 +619,20 @@ async function loadMonth() {
   } catch (err) {
     if (myCount === loadCount) message.textContent = err.message;
   }
+}
+
+// ===== Google カレンダーに書き込んだ予定を、読み直しを待たずに手元の予定にも入れる =====
+// （読み直しは時間がかかるので、先にこれで描いておき、あとから loadMonth で読み直す）
+function putEventLocally(cal, event) {
+  if (!cal || !event || !event.id) return;
+  const i = items.findIndex(x => x.cal.id === cal.id && x.event.id === event.id);
+  if (i >= 0) items[i] = { event, cal };
+  else items.push({ event, cal });
+  const startText = (x) => x.event.start.dateTime || x.event.start.date;
+  items.sort((a, b) => startText(a).localeCompare(startText(b)));
+}
+function removeEventLocally(calId, eventId) {
+  items = items.filter(x => !(x.cal.id === calId && x.event.id === eventId));
 }
 
 // ===== 月の移動 =====

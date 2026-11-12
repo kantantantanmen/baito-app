@@ -547,10 +547,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     }
     add.disabled = true;
     add.textContent = "追加中...";
+    const cal = calendars.find(c => c.id === calendarId);
     try {
-      // 足した時間は、それぞれ別の予定にする（休憩だけ同じ設定を付ける）
+      // 足した時間は、それぞれ別の予定にする（休憩だけ同じ設定を付ける）。全部いっしょに送る
       // 入れられた分は欄から消す（途中で失敗して押し直したときに、同じ予定を二重に作らない）
-      for (const x of [...activeExtras()]) {
+      const results = await Promise.allSettled([...activeExtras()].map(async (x) => {
         const made = await createEvent(calendarId, buildEvent(x.start.value, x.end.value));
         const ex = extraEdit();
         if (made && made.id && ex) {
@@ -558,10 +559,14 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
           all[`${calendarId}|${made.id}`] = ex;
           saveEdits(all);
         }
+        putEventLocally(cal, made); // 読み直しを待たずに、カレンダーに出す
         extraTimes.splice(extraTimes.indexOf(x), 1);
         x.row.remove();
-      }
+      }));
+      const failed = results.find(r => r.status === "rejected");
+      if (failed) throw failed.reason;
       const created = await createEvent(calendarId, buildEvent());
+      putEventLocally(cal, created);
       // 入れた休憩・ボーナス・メモは、予定を押した画面の設定として引き継ぐ
       if (created && created.id) {
         const e = {};
@@ -580,11 +585,13 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       else if (tentative) removeTentative(tentative.id);
       remember();
       shiftDialog.close();
-      onAdded();
+      renderAll(); // 手元の予定で先に描き直す
+      onAdded();   // そのあと Google カレンダーから読み直す
     } catch (err) {
       error.textContent = err.message;
       add.disabled = false;
       add.textContent = "シフトとして追加";
+      renumberTimes();
     }
   };
   add.onclick = submit;
