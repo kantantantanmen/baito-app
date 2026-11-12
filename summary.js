@@ -197,7 +197,7 @@ function renderSummary(container, ctx) {
   const withTentative = monthInfo(income, {}, monthKey(n1), false, "calendar").value; // カレンダー＋仮シフト
   const plan1 = planFor(plans, monthKey(n1));
   const nextExtra = [
-    ["カレンダー＋仮シフト", formatYen(withTentative), "ref"],
+    ["カレンダー＋仮シフト", formatYen(withTentative), "big"], // 合計と同じ大きさで出す
     // 3か月平均に入れる額（集計の月平均の表の「収入」、カレンダー優先と同じ）
     ["うち平均に入る額", formatYen(avgValue(n1)), "ref"],
     [`参考：予定金額の${monthName(n1)}`, plan1 == null ? "未設定" : formatYen(plan1), "ref"],
