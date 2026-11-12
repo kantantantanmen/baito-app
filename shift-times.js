@@ -67,6 +67,22 @@ function renderShiftTimes(container) {
       row.append(el("span", "times-weekday", "日月火水木金土"[wd]));
       const lines = el("div", "times-lines");
 
+      // ＋ 時間（その曜日に何か時間が入っているときだけ出す）
+      const add = el("button", "add-time", "＋ 時間");
+      add.type = "button";
+      add.onclick = () => {
+        byDay[key] = [...(byDay[key] || []), { start: "", end: "" }];
+        saveShiftTimes(all);
+        rerender();
+      };
+      const dels = [];
+      // × と「＋ 時間」を出すか決める（入力の途中で画面を作り直すと、選んでいる途中の欄が消えてしまうので、隠す・出すだけにする）
+      const refreshButtons = () => {
+        const has = (byDay[key] || []).some(x => x.start || x.end);
+        add.hidden = !has;
+        for (const d of dels) d.hidden = !has;
+      };
+
       // 時間の行（入れていなくても1行は出す）
       const shown = times.length > 0 ? times : [{ start: "", end: "" }];
       shown.forEach((t, j) => {
@@ -79,39 +95,27 @@ function renderShiftTimes(container) {
           byDay[key] = list;
           if (list.every(x => !x.start && !x.end)) delete byDay[key];
           saveShiftTimes(all);
-          // 初めて時間を入れ終わったら、× と「＋ 時間」を出すために作り直す
-          if (times.length === 0 && s.value && e.value) rerender();
+          refreshButtons();
         };
         s.onchange = save;
         e.onchange = save;
         line.append(s, "〜", e);
-        // × ：この時間を消す（1行だけで空のときは出さない）
-        if (times.length > 0) {
-          const del = el("button", "icon-btn remove-time", "×");
-          del.type = "button";
-          del.setAttribute("aria-label", "この時間を消す");
-          del.onclick = () => {
-            byDay[key] = (byDay[key] || []).filter((_, k) => k !== j);
-            if (byDay[key].length === 0) delete byDay[key];
-            saveShiftTimes(all);
-            rerender();
-          };
-          line.append(del);
-        }
-        lines.append(line);
-      });
-
-      // ＋ 時間（1つ目の時間が入っているときだけ）
-      if (times.length > 0) {
-        const add = el("button", "add-time", "＋ 時間");
-        add.type = "button";
-        add.onclick = () => {
-          byDay[key] = [...(byDay[key] || []), { start: "", end: "" }];
+        // × ：この時間を消す
+        const del = el("button", "icon-btn remove-time", "×");
+        del.type = "button";
+        del.setAttribute("aria-label", "この時間を消す");
+        del.onclick = () => {
+          byDay[key] = (byDay[key] || []).filter((_, k) => k !== j);
+          if (byDay[key].length === 0) delete byDay[key];
           saveShiftTimes(all);
           rerender();
         };
-        lines.append(add);
-      }
+        dels.push(del);
+        line.append(del);
+        lines.append(line);
+      });
+      lines.append(add);
+      refreshButtons();
       row.append(lines);
       card.append(row);
     }
