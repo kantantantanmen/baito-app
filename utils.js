@@ -53,11 +53,23 @@ function payDatesText(payDates) {
   return `${payDates.length}回振込（〜${shortDate(last)}）`;
 }
 
-// 時刻の入力欄
+// 時刻の入力欄（5分単位）
+// step で5分きざみにする。step を使わない端末（iPhone など）でも、入れ終わったら近い5分に合わせる
 function timeInput(value) {
   const input = el("input");
   input.type = "time";
+  input.step = 300; // 秒で書く（300秒＝5分）
   input.value = value;
+  input.addEventListener("change", () => {
+    if (!input.value) return;
+    const [h, m] = input.value.split(":").map(Number);
+    const total = (Math.round((h * 60 + m) / 5) * 5) % (24 * 60);
+    const rounded = `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+    if (rounded !== input.value.slice(0, 5)) {
+      input.value = rounded;
+      input.dispatchEvent(new Event("input")); // 見込みの計算などをやり直す
+    }
+  });
   return input;
 }
 
