@@ -79,20 +79,29 @@ function buildPlan(container, ctx, onChange) {
     if (Number(yearLimitInput.value) > 0) saveYearLimit(Number(yearLimitInput.value));
     onChange();
   };
+  // 1か月に入れる金額の上限（案を作るとき、0・4・5 の月や多く稼ぐのときに使う。最初は12万円）
+  const monthCapInput = numberInput(loadMonthCap(), 0);
+  monthCapInput.step = 1000;
+  monthCapInput.onchange = () => {
+    if (Number(monthCapInput.value) > 0) saveMonthCap(Number(monthCapInput.value));
+  };
   container.limitInputs = { month: monthLimitInput, year: yearLimitInput };
   const limitBox = el("div", "wp-card plan-limits");
   limitBox.append(
     field("3か月平均の上限", monthLimitInput, "円 / 月"),
     field("年の上限", yearLimitInput, "円 / 年"),
+    field("1か月の上限", monthCapInput, "円 / 月"),
   );
 
   container.append(
     titleWithHelp("h2", `収入予定（${first.getFullYear()}年1月〜${last.getFullYear()}年12月）`, [
-      "1. 来月から先の月ごとに「稼ぎたさ」を0〜5か休みで選びます。" +
-      "それぞれの月の収入の目安は、1：0〜3万円、2：3〜6万円、3：6〜9万円、4：9〜11万円、5：11万円〜、休み：0円です。" +
-      "0は「何円でもいい」月で、ほかの月を決めたあとに、上限まで残った分を全部入れます（ほかの月の邪魔をしないので、5より多く稼げることもあります）。",
+      "1. 来月から先の月ごとに「稼ぎたさ」を0〜5で選びます。" +
+      "それぞれの月の収入の目安（枠）は、1：0〜5万円、2：5〜7万円、3：7〜9万円、4：9〜11万円、5：11万円〜です。" +
+      "1・2・3は「収入を減らしたい月」です。0は「何円でもいい」月で、選んでいない月も0になります。",
       "2.「稼ぎたさから案を作る」を押すと、3か月平均と年の合計が上限を超えないことを一番に守って、来月から先の収入の予定が入ります。" +
-      "枠を守るか、多く稼ぐかは下の切り替えで選べます。",
+      "枠を守る：どの月も枠の中で、年の合計ができるだけ多くなるように入れます。" +
+      "多く稼ぐ：1・2・3の月は枠の上限まで、0・4・5の月は「1か月の上限」まで使って、年の合計が一番多くなるように入れます。" +
+      "どちらも、稼ぎたさが高い月ほど多くなるようにし、合計が同じならなるべく平らにします。",
       "3. 入った金額は自分で直せます。今月までの月と、全部のバイト先が確定した月は、確定額（自動確定・見込みを含む）を使うので入力できません。" +
       "来月から先の月でも、カレンダーか仮シフトにシフトがある月は、予定金額ではなくシフトの額を計算に使います（入力欄の下に出ます）。",
       "収入確定をした後にもう一度押すと、確定した金額をもとに、先の月の案を作り直します。",
@@ -187,7 +196,7 @@ function refreshPlan(container, ctx) {
   }
   modeBox.append(group, el("p", "muted small mode-note", mode === "band"
     ? "枠を守る：それぞれの月を稼ぎたさの枠の中に収めて、その中でできるだけ多くします。"
-    : "多く稼ぐ：まず枠の中で案を作り、まだ余裕があれば枠を超えて増やします（稼ぎたさが高い月から）。"));
+    : "多く稼ぐ：1・2・3（減らしたい月）は枠の上限まで、0・4・5は「1か月の上限」まで使って、年の合計が一番多くなるようにします。"));
   container.modeBox.textContent = "";
   container.modeBox.append(modeBox);
 
