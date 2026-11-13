@@ -123,7 +123,8 @@ function buildPlan(container, ctx, onChange) {
       "3か月平均：先々月・先月・その月の3か月の収入の平均です（例：12月の行は10月・11月・12月の平均）。" +
       "3か月平均には、バイト先設定で平均に入れないバイト先の分は入れません。年の合計には平均外の分も入れます。" +
       "収入の予定は、平均外も合わせたその月の収入全部として、3か月平均と年の合計の両方に使います。" +
-      "年の合計が年の上限より少ないときは、残り（年の上限 − 合計）を「平均外ならあと稼げる額」として出します。" +
+      "いちばん下の年の合計（平均外も含む）が、上に入れた「年の上限」を超えると赤になります。" +
+      "年の上限より少ないときは、残り（年の上限 − 年の合計）を「平均外ならあと稼げる額」として出します。" +
       "決まっている月で平均外の分があるときは、金額の下に「平均外も含めると」の額を出します。マウスを乗せると計算式が出ます。",
     ], "plan"),
     el("p", "muted intro",
@@ -251,7 +252,9 @@ function refreshPlan(container, ctx) {
     }
     // 平均外のバイト先の分があれば、年の合計に使う額も出す
     if (fixed !== null && fixed.valueAll !== fixed.value) {
-      r.fixedText.append(el("div", "avg-range", `平均外も含めると ${formatYen(fixed.valueAll)}（年の合計に使う）`));
+      const note = el("div", "avg-range");
+      note.append(`平均外も含めると ${formatYen(fixed.valueAll)}`, el("br"), "（年の合計に使う）");
+      r.fixedText.append(note);
     }
     r.fixedText.classList.toggle("fixed-note", isPast);
     r.tr.classList.toggle("fixed", isConfirmed);
@@ -282,9 +285,9 @@ function refreshPlan(container, ctx) {
           ? `計算に使う${monthName(r.month)}の収入（平均内）：${formatYen(cal.value)}${sourcePart}`
           : `参考：シフトでは（平均内）${formatYen(cal.value)}${sourcePart}`);
         if (calAll !== cal.value) {
-          r.usedNote.append(el("div", "", plan == null
-            ? `平均外も含めると ${formatYen(calAll)}（年の合計に使う）`
-            : `平均外も含めると ${formatYen(calAll)}`));
+          const note = el("div", "", `平均外も含めると ${formatYen(calAll)}`);
+          if (plan == null) note.append(el("br"), "（年の合計に使う）");
+          r.usedNote.append(note);
         }
       }
     }
@@ -313,11 +316,11 @@ function refreshPlan(container, ctx) {
   // 年の合計
   container.planTotal.textContent = "";
   for (const [y, sum] of Object.entries(yearSums)) {
-    addRow(container.planTotal, `${y}年の合計・平均外も含む（年の上限 ${formatYen(yearLimit)}）`, formatYen(sum),
+    addRow(container.planTotal, `${y}年の合計・平均外も含む`, formatYen(sum),
            sum > yearLimit ? "over" : "");
     // 年の上限まで残っている分は、3か月平均に入らない平均外のバイト先なら稼いでいい
     if (sum < yearLimit) {
-      addRow(container.planTotal, `${y}年、平均外ならあと稼げる額（年の上限 − 合計）`, formatYen(yearLimit - sum), "dim");
+      addRow(container.planTotal, `${y}年、平均外ならあと稼げる額`, formatYen(yearLimit - sum), "dim");
     }
   }
 }
