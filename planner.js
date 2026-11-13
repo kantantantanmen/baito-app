@@ -58,6 +58,26 @@ function setWeight(month, level) {
   localStorage.setItem(LEVELS_KEY, JSON.stringify(levels));
 }
 
+// ----- 金額を固定した月（📌） -----
+// 固定した月は、案を作っても上書きせず、決まっている月と同じように扱う（ほかの月をそれに合わせて調整する）
+// 形: { "2027-01": true }
+const PINNED_KEY = "baito-plan-pinned";
+
+function loadPinned() {
+  try {
+    return JSON.parse(localStorage.getItem(PINNED_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function setPinned(month, on) {
+  const pinned = loadPinned();
+  if (on) pinned[month] = true;
+  else delete pinned[month];
+  localStorage.setItem(PINNED_KEY, JSON.stringify(pinned));
+}
+
 function weightOf(levels, month) {
   const v = levels[month] ?? DEFAULT_LEVEL;
   return v === 0 ? 1 : v; // 前にあった「休み」は 1

@@ -35,8 +35,16 @@ function fixedInfoOf(ctx, d) {
 //   all：false＝3か月平均用（平均外は除く）、true＝年の合計用（平均外も含む）
 function fixedValueOf(ctx, d, all = false) {
   const info = fixedInfoOf(ctx, d);
-  if (!info) return null;
-  return all ? info.valueAll : info.value;
+  if (info) return all ? info.valueAll : info.value;
+  // 📌 で金額を固定した月も、決まっている月として扱う（金額が入っているときだけ）
+  const key = monthKey(d);
+  if (isPinnedMonth(ctx, key)) return monthInfo(ctx.income, ctx.plans, key, !all, "calendar").value;
+  return null;
+}
+
+// 📌 で固定していて、収入の予定が入っている月か
+function isPinnedMonth(ctx, key) {
+  return Boolean(loadPinned()[key]) && ctx.plans[key] != null;
 }
 
 function renderPlan(container, ctx, onChange) {
@@ -56,7 +64,7 @@ function buildPlan(container, ctx, onChange) {
   // --- 説明と「案を作る」ボタン ---
   const proposeButton = el("button", "primary", "稼ぎたさから案を作る");
   proposeButton.onclick = () => {
-    if (!confirm("今月より先の月の「収入の予定」を、案で上書きします。よろしいですか？")) return;
+    if (!confirm("今月より先の月の「収入の予定」を、案で上書きします（📌 で固定した月はそのまま）。よろしいですか？")) return;
     const latest = container.ctx; // 押した時点の最新のデータ（refreshPlan で毎回入れ替えている）
     const proposal = proposePlan(months, loadWeights(), (d) => fixedValueOf(latest, d),
                                  loadLimit(), loadYearLimit(), loadPlanMode(),
@@ -102,6 +110,8 @@ function buildPlan(container, ctx, onChange) {
       "枠を守る：どの月も枠の中で、年の合計ができるだけ多くなるように入れます。" +
       "多く稼ぐ：1・2・3の月は枠の上限まで、0・4・5の月は「1か月の上限」まで使って、年の合計が一番多くなるように入れます。" +
       "どちらも、稼ぎたさが高い月ほど多くなるようにし、合計が同じならなるべく平らにします。",
+      "📌：金額を自分で決めたい月は、収入の予定を入れて 📌 を押します。案を作っても、その月は上書きされず、" +
+      "その金額をもとにほかの月を調整します。もう一度押すと固定をやめます。",
       "3. 入った金額は自分で直せます。今月までの月と、全部のバイト先が確定した月は、確定額（自動確定・見込みを含む）を使うので入力できません。" +
       "来月から先の月でも、カレンダーか仮シフトにシフトがある月は、予定金額ではなくシフトの額を計算に使います（入力欄の下に出ます）。",
       "収入確定をした後にもう一度押すと、確定した金額をもとに、先の月の案を作り直します。",
@@ -152,8 +162,15 @@ function buildPlan(container, ctx, onChange) {
       setPlan(key, input.value === "" ? null : Number(input.value));
       onChange();
     };
-    const inputBox = el("span");
-    inputBox.append(input, " 円");
+    // 📌：金額を固定する（案を作っても上書きしない）
+    const pin = el("button", "pin-button", "📌");
+    pin.type = "button";
+    pin.onclick = () => {
+      setPinned(key, !loadPinned()[key]);
+      onChange();
+    };
+    const inputBox = el("span", "plan-input");
+    inputBox.append(input, " 円", pin);
     const fixedText = el("span", "fixed-amount");
     const amountCell = el("td");
     const bandNote = el("span", "band-note"); // 枠から外れているときの印
@@ -164,7 +181,7 @@ function buildPlan(container, ctx, onChange) {
     const tr = el("tr");
     tr.append(monthCell, weightCell, amountCell, avgCell);
     table.append(tr);
-    container.planRows.push({ month, key, tr, weight, weightDash, inputBox, fixedText, bandNote, usedNote, avgCell });
+    container.planRows.push({ month, key, tr, weight, weightDash, inputBox, pin, fixedText, bandNote, usedNote, avgCell });
   });
 
   const wrap = el("div", "table-wrap");
@@ -225,6 +242,14 @@ function refreshPlan(container, ctx) {
     const fixed = fixedInfoOf(ctx, r.month);
     const isConfirmed = fixed !== null && fixed.usesConfirmed;
     const isPast = fixed !== null && !isConfirmed;
+
+    // 📌 は来月から先の月だけ。押してあれば色を付ける（金額が空のときは押してあっても固定しない）
+    const pinOn = Boolean(loadPinned()[r.key]);
+    r.pin.hidden = fixed !== null;
+    r.pin.classList.toggle("on", pinOn);
+    r.pin.title = pinOn
+      ? (plans[r.key] != null ? "金額を固定中（押すとやめる）" : "金額を入れると固定されます（押すとやめる）")
+      : "この金額を固定する（案を作っても上書きしない）";
 
     r.weight.hidden = fixed !== null;
     r.weightDash.hidden = fixed === null;

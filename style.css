@@ -191,6 +191,9 @@ tr.ow-bottom td { border-bottom: 2px solid #d93025; }
 .avg-range { font-size: 0.7rem; font-weight: 400; color: var(--muted); }
 .band-note { display: block; margin-top: 2px; font-size: 0.7rem; color: #b06000; font-weight: 600; }
 .mode-note { margin: 4px 0 0; }
+.plan-input { white-space: nowrap; }
+.pin-button { margin-left: 4px; padding: 2px 4px; border: 1px solid transparent; border-radius: 6px; background: none; font-size: 0.85rem; cursor: pointer; opacity: 0.25; filter: grayscale(1); }
+.pin-button.on { opacity: 1; filter: none; border-color: var(--line); background: #fff4e5; }
 .plan-limits .field-label { width: 120px; }
 .plan-limits input[type="number"] { width: 120px; }
 .page > .primary { margin: 0 0 16px; }
