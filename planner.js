@@ -201,7 +201,7 @@ function proposePlanGreedy(months, levels, fixedValue, monthLimit, yearLimit, mo
 //             ③ 稼ぎたさが高い月に多く入れる（低い月は、ほかで足りるならできるだけ増やさない）
 //             ④ 月ごとの金額をできるだけ平らに
 //   多く稼ぐ：1・2・3（減らしたい月）は枠の上限まで、0・4・5 は1か月の上限まで
-//             稼ぎたさの順序を守る（5の月 ≥ 4の月 ≥ 3の月 ≥ 2の月 ≥ 1の月。0は順序に入れない）
+//             稼ぎたさの順序を守る（5の月 ≥ 4の月 ≥ 3の月 ≥ 2の月 ≥ 1の月。0は順序に入れず、1か月の上限までなら何円でもよい）
 //             ① 年の合計をできるだけ多く
 //             ② 稼ぎたさが高い月に多く入れる
 //             ③ 月ごとの金額をできるだけ平らに
@@ -272,8 +272,8 @@ function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, 
   //   多く稼ぐ：1・2・3（減らしたい月）は枠の上限、0・4・5 は自分で決めた1か月の上限
   //   枠を守る：枠の上限（0 と 5 は枠に上限がないので、自分で決めた1か月の上限）
   const monthCap = loadMonthCap() / U;
-  // 稼ぎたさの順序に使う値（0：何円でもいい は 4 と 3 のあいだ）
-  const order = (k) => (isAny(k) ? 3.5 : level(k));
+  // 稼ぎたさの高さ（1,000円ずつ戻す順番に使う。0：何円でもいい は 3 と同じくらい）
+  const order = (k) => (isAny(k) ? 3 : level(k));
   const maxCap = (k) => (!isAny(k) && level(k) <= REDUCE_LEVEL_MAX ? hi(k) : monthCap);
   const bandCap = (k) => Math.min(hi(k), monthCap);
 
@@ -285,8 +285,8 @@ function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, 
     if (m === "band") for (const k of vars) if (lo(k) > 0) underAt[k] = count++;
     // 稼ぎたさの順序（多く稼ぐのとき）：稼ぎたさが1つ上の段階の月は、下の段階の月より少なくしない
     //   段階のあいだに「さかい目」の数を1つ置いて、上の段階の月 ≥ さかい目 ≥ 下の段階の月 にする
-    //   順序は 5 ≥ 4 ≥ 0（何円でもいい）≥ 3 ≥ 2 ≥ 1
-    const shown = [...new Set(vars.map(order))].sort((a, b) => b - a);
+    //   順序は 5 ≥ 4 ≥ 3 ≥ 2 ≥ 1。0（何円でもいい）は順序に入れない（1か月の上限までなら何円でもよい）
+    const shown = [...new Set(vars.filter(k => !isAny(k)).map(level))].sort((a, b) => b - a);
     const borders = []; // [上の段階, 下の段階, さかい目の番号]
     if (m === "max") for (let i = 0; i + 1 < shown.length; i++) borders.push([shown[i], shown[i + 1], count++]);
     const pairs = [];   // となり合う月（どちらも金額を決める月）と、その差
@@ -316,6 +316,7 @@ function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, 
     }
     for (const [upper, lower, t] of borders) {                    // 上の段階の月 ≥ さかい目 ≥ 下の段階の月
       for (const k of vars) {
+        if (isAny(k)) continue;
         const a = vec();
         if (order(k) === upper) { a[at.get(k)] = 1; a[t] = -1; rows.push({ a, op: ">=", b: 0 }); }
         if (order(k) === lower) { a[at.get(k)] = -1; a[t] = 1; rows.push({ a, op: ">=", b: 0 }); }
@@ -364,7 +365,8 @@ function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, 
       if (amount[k] + 1 > x[at.get(k)] + 1) continue;                     // 計算した額より1,000円以上多くはしない
       if (amount[k] + 1 > (mode === "max" ? maxCap(k) : bandCap(k)) + 1e-9) continue;
       // 多く稼ぐ：稼ぎたさが上の月より多くしない（稼ぎたさの順序を守る）
-      if (mode === "max" && vars.some(o => order(o) > order(k) && amount[k] + 1 > amount[o])) continue;
+      if (mode === "max" && !isAny(k) &&
+          vars.some(o => !isAny(o) && level(o) > level(k) && amount[k] + 1 > amount[o])) continue;
       if (constraints.some(c => c.keys.includes(k) && slack(c) < 1 - 1e-9)) continue;
       amount[k] += 1;
       changed = true;
