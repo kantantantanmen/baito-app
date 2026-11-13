@@ -1,8 +1,11 @@
 // ===== 「稼ぎたさ」から収入の予定の案を作る =====
 
-// ----- 稼ぎたさ（5段階 ＋ 休み） -----
+// ----- 稼ぎたさ（5段階 ＋ 何円でもいい ＋ 休み） -----
 // 各段階の「枠」＝その月の収入の目安 [下限, 上限]
+// 「0（何円でもいい）」は、ほかの月を決めたあとに、上限まで残った分を全部入れる月（保存する値は -1）
+const ANY_LEVEL = -1;
 const LEVEL_BANDS = {
+  [ANY_LEVEL]: [0, Infinity], // 何円でもいい（枠から外れることはない）
   0: [0, 0],               // 休み
   1: [0, 30000],
   2: [30000, 60000],
@@ -17,6 +20,7 @@ const WEIGHT_CHOICES = [
   [3, "3"],
   [2, "2"],
   [1, "1"],
+  [ANY_LEVEL, "0"],
   [0, "休み"],
 ];
 const DEFAULT_LEVEL = 3;
@@ -81,6 +85,7 @@ function savePlanMode(mode) {
 //   段階1：全部の月を、枠の下限まで増やす
 //   段階2：全部の月を、枠の上限まで増やす
 //   段階3（"max" のときだけ）：枠を超えて増やす。稼ぎたさが高い月ほど速く増やす
+//   段階4：「0（何円でもいい）」の月に、上限まで残った分を入れる（ほかの月がもう増やせなくなってから）
 // どこかで優先度1の上限ちょうどになったら、そこに入っている月はそれ以上増やさない
 function proposePlan(months, levels, fixedValue, monthLimit, yearLimit, mode = "band", yearFixedValue = fixedValue) {
   const x = {};       // 各月の金額
@@ -157,11 +162,13 @@ function proposePlan(months, levels, fixedValue, monthLimit, yearLimit, mode = "
   };
 
   const level = (k) => weightOf(levels, k);
-  fill((k) => bandOf(level(k))[0], () => 1);          // 段階1：枠の下限まで（同じ速さ）
-  fill((k) => bandOf(level(k))[1], () => 1);          // 段階2：枠の上限まで（同じ速さ）
+  const isAny = (k) => level(k) === ANY_LEVEL;
+  fill((k) => bandOf(level(k))[0], () => 1);                      // 段階1：枠の下限まで（同じ速さ）
+  fill((k) => (isAny(k) ? 0 : bandOf(level(k))[1]), () => 1);    // 段階2：枠の上限まで（同じ速さ。何円でもいい月は待つ）
   if (mode === "max") {
-    fill(() => Infinity, (k) => level(k));            // 段階3：枠を超えて（稼ぎたさが高いほど速く。休みは増やさない）
+    fill(() => Infinity, (k) => (isAny(k) ? 0 : level(k)));      // 段階3：枠を超えて（稼ぎたさが高いほど速く。休みは増やさない）
   }
+  fill(() => Infinity, (k) => (isAny(k) ? 1 : 0));               // 段階4：何円でもいい月に、残った分を全部
 
   const result = {};
   for (const k of free) result[k] = Math.floor(x[k] / 1000) * 1000; // 切り捨てなので上限は超えない
