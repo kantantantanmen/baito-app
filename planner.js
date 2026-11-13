@@ -203,8 +203,9 @@ function proposePlanGreedy(months, levels, fixedValue, monthLimit, yearLimit, mo
 //   多く稼ぐ：1・2・3（減らしたい月）は枠の上限まで、0・4・5 は1か月の上限まで
 //             稼ぎたさの順序を守る（5の月 ≥ 4の月 ≥ 3の月 ≥ 2の月 ≥ 1の月。0は順序に入れず、1か月の上限までなら何円でもよい）
 //             ① 年の合計をできるだけ多く
-//             ② 稼ぎたさが高い月に多く入れる
-//             ③ 月ごとの金額をできるだけ平らに
+//             ② 減らしたい月（1・2・3）は、年の合計が変わらない範囲でできるだけ少なく（枠の上限はいつも使い切らない）
+//             ③ 稼ぎたさが高い月に多く入れる
+//             ④ 月ごとの金額をできるだけ平らに
 //   「0（何円でもいい）」の月は枠がないので、合計を増やすために自由に使う
 function proposePlan(months, levels, fixedValue, monthLimit, yearLimit, mode = "band", yearFixedValue = fixedValue) {
   try {
@@ -337,7 +338,10 @@ function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, 
     for (const k of vars) pref[at.get(k)] = -(isAny(k) ? 3 : 6 - level(k));
     const flatter = vec();
     for (const [, , j] of pairs) flatter[j] = -1;
-    const goals = m === "max" ? [total, pref, flatter] : [lessUnder, total, pref, flatter];
+    // 減らしたい月（1・2・3）は、年の合計が変わらない範囲で、できるだけ少なく（1がいちばん強く減らす）
+    const lessReduce = vec();
+    for (const k of vars) if (!isAny(k) && level(k) <= REDUCE_LEVEL_MAX) lessReduce[at.get(k)] = -(REDUCE_LEVEL_MAX + 1 - level(k));
+    const goals = m === "max" ? [total, lessReduce, pref, flatter] : [lessUnder, total, pref, flatter];
 
     let x = null;
     for (const goal of goals) {
