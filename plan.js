@@ -36,10 +36,19 @@ function fixedInfoOf(ctx, d) {
 function fixedValueOf(ctx, d, all = false) {
   const info = fixedInfoOf(ctx, d);
   if (info) return all ? info.valueAll : info.value;
-  // 📌 で金額を固定した月も、決まっている月として扱う（金額が入っているときだけ）
   const key = monthKey(d);
-  if (isPinnedMonth(ctx, key)) return monthInfo(ctx.income, ctx.plans, key, !all, "calendar").value;
+  const x = monthInfo(ctx.income, ctx.plans, key, !all, "calendar");
+  // 来月から先でも、カレンダーのシフトや一部確定があって、予定金額を入れても使われない月は、
+  // 表と同じ額（カレンダー・確定）で決まっている月として扱う（仮シフトだけの月は予定金額を使うので、案を作る月のまま）
+  if (!usesPlanAmount(ctx, key)) return x.value;
+  // 📌 で金額を固定した月も、決まっている月として扱う（金額が入っているときだけ）
+  if (isPinnedMonth(ctx, key)) return x.value;
   return null;
+}
+
+// 予定金額を入れたら、その金額が使われる月か（カレンダーのシフトも確定もない月）
+function usesPlanAmount(ctx, key) {
+  return monthInfo(ctx.income, { ...ctx.plans, [key]: 1 }, key, true, "calendar").source === "plan";
 }
 
 // 📌 で固定していて、収入の予定が入っている月か
@@ -113,7 +122,8 @@ function buildPlan(container, ctx, onChange) {
       "📌：金額を自分で決めたい月は、収入の予定を入れて 📌 を押します。案を作っても、その月は上書きされず、" +
       "その金額をもとにほかの月を調整します。もう一度押すと固定をやめます。",
       "3. 入った金額は自分で直せます。今月までの月と、全部のバイト先が確定した月は、確定額（自動確定・見込みを含む）を使うので入力できません。" +
-      "来月から先の月でも、カレンダーか仮シフトにシフトがある月は、予定金額ではなくシフトの額を計算に使います（入力欄の下に出ます）。",
+      "来月から先の月でも、カレンダーのシフトや確定がある月は、予定金額ではなくその額を計算に使います（入力欄の下に出ます）。" +
+      "案を作るときも、その月はその額で決まっているものとして、ほかの月を決めます。",
       "収入確定をした後にもう一度押すと、確定した金額をもとに、先の月の案を作り直します。",
       "3か月平均：先々月・先月・その月の3か月の収入の平均です（例：12月の行は10月・11月・12月の平均）。" +
       "3か月平均には、バイト先設定で平均に入れないバイト先の分は入れません。年の合計には平均外の分も入れます。" +
