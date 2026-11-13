@@ -116,7 +116,7 @@ function buildPlan(container, ctx, onChange) {
       "3. 入った金額は自分で直せます。今月までの月と、全部のバイト先が確定した月は、確定額（自動確定・見込みを含む）を使うので入力できません。" +
       "この画面は予定金額優先です。来月から先の月は、カレンダーにシフトがあっても、収入の予定に入れた金額で3か月平均と年の合計を計算します。" +
       "収入の予定が空の月だけ、カレンダー＋仮シフト（確定したバイト先は確定額）の額を使います。" +
-      "シフトがある月は、入力欄の下に参考としてカレンダー＋仮シフトの額を出し、収入の予定と違うときは色を付けます。" +
+      "カレンダーのシフトや確定がある月は、入力欄の下に参考としてカレンダー＋仮シフトの額を出します。" +
       "カレンダーの額にしたい月は、その額を入れて 📌 で固定してください。",
       "収入確定をした後にもう一度押すと、確定した金額をもとに、先の月の案を作り直します。",
       "3か月平均：先々月・先月・その月の3か月の収入の平均です（例：12月の行は10月・11月・12月の平均）。" +
@@ -284,13 +284,14 @@ function refreshPlan(container, ctx) {
 
     // 来月から先の月：シフト（カレンダー・仮シフト）や確定がある月は、その額を書く
     //   収入の予定が空 ：その額を計算に使う
-    //   収入の予定がある：計算には収入の予定を使うので、参考として出す（違うときは色を付ける）
+    //   収入の予定がある：計算には収入の予定を使うので、参考として出す
+    //   仮シフトだけの月は書かない
     r.usedNote.textContent = "";
-    r.usedNote.classList.remove("plan-diff");
     if (fixed === null) {
       const cal = monthInfo(income, {}, r.key, true, "calendar");      // 予定金額を使わないときの額（平均内）
       const calAll = monthInfo(income, {}, r.key, false, "calendar").value;
-      if (sourceText(cal) !== "―") {
+      const hasCalendar = monthRows(income, r.key).some(x => x.value > 0 && x.count > x.tentativeCount);
+      if (sourceText(cal) !== "―" && (cal.hasConfirmed || hasCalendar)) {
         // 平均外のバイト先しかない月は、下の「平均外も含めると」で分かるので、もと（平均外のみ）は書かない
         const sourcePart = cal.outsideOnly ? "" : `（${sourceName(cal)}）`;
         r.usedNote.append(plan == null
@@ -301,7 +302,6 @@ function refreshPlan(container, ctx) {
             ? `平均外も含めると ${formatYen(calAll)}（年の合計に使う）`
             : `平均外も含めると ${formatYen(calAll)}`));
         }
-        r.usedNote.classList.toggle("plan-diff", plan != null && plan !== cal.value);
       }
     }
 
