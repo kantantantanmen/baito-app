@@ -68,7 +68,7 @@ function buildPlan(container, ctx, onChange) {
     if (!confirm("今月より先の月の「収入の予定」を、案で上書きします（📌 で固定した月はそのまま）。よろしいですか？")) return;
     const latest = container.ctx; // 押した時点の最新のデータ（refreshPlan で毎回入れ替えている）
     const proposal = proposePlan(months, loadWeights(), (d) => fixedValueOf(latest, d),
-                                 loadLimit(), loadYearLimit(), loadPlanMode(),
+                                 loadLimit(), loadYearLimit(),
                                  (d) => fixedValueOf(latest, d, true)); // 年の合計は平均外も含める
     for (const [key, amount] of Object.entries(proposal)) setPlan(key, amount);
     container.dataset.year = "";   // 入力欄に新しい金額を入れるため、表を作り直す
@@ -108,9 +108,10 @@ function buildPlan(container, ctx, onChange) {
       "それぞれの月の収入の目安（枠）は、1：0〜5万円、2：5〜7万円、3：7〜9万円、4：9〜11万円、5：11万円〜です。" +
       "1・2・3は「収入を減らしたい月」です。0は「何円でもいい」月で、選んでいない月も0になります。",
       "2.「稼ぎたさから案を作る」を押すと、3か月平均と年の合計が上限を超えないことを一番に守って、来月から先の収入の予定が入ります。" +
-      "枠を守る：どの月も枠の中で、年の合計ができるだけ多くなるように入れます。" +
-      "多く稼ぐ：1・2・3の月は枠の上限まで、0・4・5の月は「1か月の上限」まで使って、年の合計が一番多くなるように入れます。" +
-      "どちらも、稼ぎたさが高い月ほど多くなるようにし、合計が同じならなるべく平らにします。",
+      "どの月も枠の中（0と5は「1か月の上限」まで）で、年の合計ができるだけ多くなるように入れます。" +
+      "1・2・3の月は、合計が変わらない範囲で枠の中でできるだけ少なくします。" +
+      "稼ぎたさが高い月ほど多くなるようにし、合計が同じならなるべく平らにします。" +
+      "枠を超えて稼ぎたい月は0にするか、金額を入れて 📌 で固定してください。",
       "📌：金額を自分で決めたい月は、収入の予定を入れて 📌 を押します。案を作っても、その月は上書きされず、" +
       "その金額をもとにほかの月を調整します。もう一度押すと固定をやめます。",
       "3. 入った金額は自分で直せます。今月までの月と、全部のバイト先が確定した月は、確定額（自動確定・見込みを含む）を使うので入力できません。" +
@@ -126,7 +127,6 @@ function buildPlan(container, ctx, onChange) {
     el("p", "muted intro",
       "月ごとに「稼ぎたさ」を選んで「稼ぎたさから案を作る」を押すと、上限を超えないように収入の予定が入ります。金額は自分で直せます。"),
     limitBox,
-    container.modeBox = el("div"),   // 「枠を守る／多く稼ぐ」の切り替え（中身は refreshPlan で作る）
     proposeButton,
   );
 
@@ -201,24 +201,6 @@ function buildPlan(container, ctx, onChange) {
 function refreshPlan(container, ctx) {
   container.ctx = ctx;
   const { income, plans } = ctx;
-  // 「枠を守る／多く稼ぐ」の切り替え（案を作るときに使う）
-  const mode = loadPlanMode();
-  const modeBox = el("div", "priority");
-  modeBox.append(el("span", "priority-label", "案を作るとき、どちらを優先するか"));
-  const group = el("div", "segmented");
-  for (const [value, text] of [["band", "枠を守る"], ["max", "多く稼ぐ"]]) {
-    const button = el("button", value === mode ? "active" : "", text);
-    button.onclick = () => {
-      savePlanMode(value);
-      ctx.onChange();
-    };
-    group.append(button);
-  }
-  modeBox.append(group, el("p", "muted small mode-note", mode === "band"
-    ? "枠を守る：それぞれの月を稼ぎたさの枠の中に収めて、その中でできるだけ多くします。"
-    : "多く稼ぐ：1・2・3（減らしたい月）は枠の上限まで、0・4・5は「1か月の上限」まで使って、年の合計が一番多くなるようにします。"));
-  container.modeBox.textContent = "";
-  container.modeBox.append(modeBox);
 
   const limit = loadLimit();
   const yearLimit = loadYearLimit();

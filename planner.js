@@ -1,9 +1,8 @@
 // ===== 「稼ぎたさ」から収入の予定の案を作る =====
 
 // ----- 稼ぎたさ（1〜5 ＋ 0：何円でもいい） -----
-// 各段階の「枠」＝その月の収入の目安 [下限, 上限]
-// 1・2・3 は「減らしたい月」：多く稼ぐのときも枠の上限までにする
-// 0・4・5 は、多く稼ぐのとき、1か月の上限（自分で決める。最初は12万円）まで増やしてよい
+// 各段階の「枠」＝その月の収入の目安 [下限, 上限]。案は枠の中で作る（0 と 5 は1か月の上限まで）
+// 1・2・3 は「減らしたい月」：合計が変わらない範囲で、枠の中でできるだけ少なくする
 // 「0（何円でもいい）」は枠がない月（保存する値は -1）。入力がない月も 0 として扱う
 const ANY_LEVEL = -1;
 const LEVEL_BANDS = {
@@ -87,10 +86,7 @@ function bandOf(level) {
   return LEVEL_BANDS[level] || LEVEL_BANDS[DEFAULT_LEVEL];
 }
 
-// ----- 枠と稼ぐ量、どちらを優先するか -----
-// "band"＝枠を守る（枠の中でできるだけ多く）、"max"＝多く稼ぐ（余裕があれば枠を超えて増やす）
-const PLAN_MODE_KEY = "baito-plan-mode";
-// 1か月に入れる金額の上限（円）。自分で決められる（予定金額設定の画面）。最初は12万円
+// 1か月に入れる金額の上限（円）。0 と 5 の月に使う。自分で決められる（予定金額設定の画面）。最初は12万円
 const MONTH_CAP_KEY = "baito-plan-month-cap";
 const DEFAULT_MONTH_CAP = 120000;
 function loadMonthCap() {
@@ -101,23 +97,14 @@ function saveMonthCap(v) {
   localStorage.setItem(MONTH_CAP_KEY, String(v));
 }
 
-function loadPlanMode() {
-  return localStorage.getItem(PLAN_MODE_KEY) === "max" ? "max" : "band";
-}
-
-function savePlanMode(mode) {
-  localStorage.setItem(PLAN_MODE_KEY, mode);
-}
-
 // ===== 案を作る（前のやり方。新しい計算がうまくいかなかったときの予備） =====
 // 優先度1（必ず守る）：どの3か月平均も月の上限以下、年の合計も年の上限以下
 // そのうえで、少しずつ同時に増やしていく：
 //   段階1：全部の月を、枠の下限まで増やす
-//   段階2：全部の月を、枠の上限まで増やす
-//   段階3（"max" のときだけ）：枠を超えて増やす。稼ぎたさが高い月ほど速く増やす
-//   段階4：「0（何円でもいい）」の月に、上限まで残った分を入れる（ほかの月がもう増やせなくなってから）
+//   段階2：全部の月を、枠の上限まで増やす（5 は1か月の上限まで）
+//   段階3：「0（何円でもいい）」の月に、1か月の上限まで残った分を入れる（ほかの月がもう増やせなくなってから）
 // どこかで優先度1の上限ちょうどになったら、そこに入っている月はそれ以上増やさない
-function proposePlanGreedy(months, levels, fixedValue, monthLimit, yearLimit, mode = "band", yearFixedValue = fixedValue) {
+function proposePlanGreedy(months, levels, fixedValue, monthLimit, yearLimit, yearFixedValue = fixedValue) {
   const x = {};       // 各月の金額
   const free = [];    // 案を作る月
   for (const d of months) {
@@ -193,12 +180,10 @@ function proposePlanGreedy(months, levels, fixedValue, monthLimit, yearLimit, mo
 
   const level = (k) => weightOf(levels, k);
   const isAny = (k) => level(k) === ANY_LEVEL;
-  fill((k) => bandOf(level(k))[0], () => 1);                      // 段階1：枠の下限まで（同じ速さ）
-  fill((k) => (isAny(k) ? 0 : bandOf(level(k))[1]), () => 1);    // 段階2：枠の上限まで（同じ速さ。何円でもいい月は待つ）
-  if (mode === "max") {
-    fill(() => Infinity, (k) => (isAny(k) ? 0 : level(k)));      // 段階3：枠を超えて（稼ぎたさが高いほど速く。休みは増やさない）
-  }
-  fill(() => Infinity, (k) => (isAny(k) ? 1 : 0));               // 段階4：何円でもいい月に、残った分を全部
+  const monthCap = loadMonthCap();
+  fill((k) => bandOf(level(k))[0], () => 1);                                             // 段階1：枠の下限まで（同じ速さ）
+  fill((k) => (isAny(k) ? 0 : Math.min(bandOf(level(k))[1], monthCap)), () => 1);       // 段階2：枠の上限まで（何円でもいい月は待つ）
+  fill(() => monthCap, (k) => (isAny(k) ? 1 : 0));                                       // 段階3：何円でもいい月に、残った分を
 
   const result = {};
   for (const k of free) result[k] = Math.floor(x[k] / 1000) * 1000; // 切り捨てなので上限は超えない
@@ -210,34 +195,28 @@ function proposePlanGreedy(months, levels, fixedValue, monthLimit, yearLimit, mo
 //   levels    : 各月の稼ぎたさ
 //   fixedValue: 決まっている月の金額（3か月平均用。平均外は除く）を返す関数。まだ決まっていない（案を作る）月は null を返す
 //   yearFixedValue: 決まっている月の金額（年の合計用。平均外も含む）を返す関数。省略すると fixedValue と同じ
-//   mode      : "band"（枠を守る）または "max"（多く稼ぐ）
 //   戻り値    : { "2026-12": 95000, ... }（案を作った月だけ。1,000円単位）
 //
 // 全部の月を一緒に決める。必ず守るのは、どの3か月平均も月の上限以下・年の合計も年の上限以下
+// どの月も枠の上限まで（0・5 は1か月の上限まで）
 // そのうえで、上から順に大事にする（前のものを悪くしない範囲で、次のものを良くする）
-//   枠を守る：どの月も枠の上限まで（0・5 は1か月の上限まで）
-//             ① 枠の下限に足りない分をできるだけ少なく
-//             ② 年の合計をできるだけ多く
-//             ③ 稼ぎたさが高い月に多く入れる（低い月は、ほかで足りるならできるだけ増やさない）
-//             ④ 月ごとの金額をできるだけ平らに
-//   多く稼ぐ：1・2・3（減らしたい月）は枠の上限まで、0・4・5 は1か月の上限まで
-//             稼ぎたさの順序を守る（5の月 ≥ 4の月 ≥ 3の月 ≥ 2の月 ≥ 1の月。0は順序に入れず、1か月の上限までなら何円でもよい）
-//             ① 年の合計をできるだけ多く
-//             ② 減らしたい月（1・2・3）は、年の合計が変わらない範囲でできるだけ少なく（枠の上限はいつも使い切らない）
-//             ③ 稼ぎたさが高い月に多く入れる
-//             ④ 月ごとの金額をできるだけ平らに
-//   「0（何円でもいい）」の月は枠がないので、合計を増やすために自由に使う
-function proposePlan(months, levels, fixedValue, monthLimit, yearLimit, mode = "band", yearFixedValue = fixedValue) {
+//   ① 枠の下限に足りない分をできるだけ少なく
+//   ② 年の合計をできるだけ多く
+//   ③ 減らしたい月（1・2・3）は、年の合計が変わらない範囲でできるだけ少なく
+//   ④ 稼ぎたさが高い月に多く入れる（低い月は、ほかで足りるならできるだけ増やさない）
+//   ⑤ 月ごとの金額をできるだけ平らに
+// 「0（何円でもいい）」の月は枠がないので、合計を増やすために自由に使う
+function proposePlan(months, levels, fixedValue, monthLimit, yearLimit, yearFixedValue = fixedValue) {
   try {
-    const result = proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, yearFixedValue);
+    const result = proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, yearFixedValue);
     if (result) return result;
   } catch (err) {
     console.error(err);
   }
-  return proposePlanGreedy(months, levels, fixedValue, monthLimit, yearLimit, mode, yearFixedValue);
+  return proposePlanGreedy(months, levels, fixedValue, monthLimit, yearLimit, yearFixedValue);
 }
 
-function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, yearFixedValue) {
+function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, yearFixedValue) {
   const U = 1000; // 計算は千円単位でする（数字を小さくして、計算の誤差を減らすため）
   const level = (k) => weightOf(levels, k);
   const isAny = (k) => level(k) === ANY_LEVEL;
@@ -289,27 +268,17 @@ function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, 
   const lo = (k) => (isAny(k) ? 0 : bandOf(level(k))[0] / U);
   const hi = (k) => (isAny(k) ? Infinity : bandOf(level(k))[1] / U);
   const n = vars.length;
-  // 1か月の上限（千円）
-  //   多く稼ぐ：1・2・3（減らしたい月）は枠の上限、0・4・5 は自分で決めた1か月の上限
-  //   枠を守る：枠の上限（0 と 5 は枠に上限がないので、自分で決めた1か月の上限）
+  // 1か月の上限（千円）：枠の上限（0 と 5 は枠に上限がないので、自分で決めた1か月の上限）
   const monthCap = loadMonthCap() / U;
   // 稼ぎたさの高さ（1,000円ずつ戻す順番に使う。0：何円でもいい は 3 と同じくらい）
   const order = (k) => (isAny(k) ? 3 : level(k));
-  const maxCap = (k) => (!isAny(k) && level(k) <= REDUCE_LEVEL_MAX ? hi(k) : monthCap);
   const bandCap = (k) => Math.min(hi(k), monthCap);
 
-  // m："band"（枠を守る）か "max"（多く稼ぐ）
   // 戻り値：各月の金額（千円、小数のまま）の配列。見つからなければ null
-  const solve = (m) => {
+  const solve = () => {
     let count = n;
-    const underAt = {};   // 枠の下限に足りない分（枠を守るのとき）
-    if (m === "band") for (const k of vars) if (lo(k) > 0) underAt[k] = count++;
-    // 稼ぎたさの順序（多く稼ぐのとき）：稼ぎたさが1つ上の段階の月は、下の段階の月より少なくしない
-    //   段階のあいだに「さかい目」の数を1つ置いて、上の段階の月 ≥ さかい目 ≥ 下の段階の月 にする
-    //   順序は 5 ≥ 4 ≥ 3 ≥ 2 ≥ 1。0（何円でもいい）は順序に入れない（1か月の上限までなら何円でもよい）
-    const shown = [...new Set(vars.filter(k => !isAny(k)).map(level))].sort((a, b) => b - a);
-    const borders = []; // [上の段階, 下の段階, さかい目の番号]
-    if (m === "max") for (let i = 0; i + 1 < shown.length; i++) borders.push([shown[i], shown[i + 1], count++]);
+    const underAt = {};   // 枠の下限に足りない分
+    for (const k of vars) if (lo(k) > 0) underAt[k] = count++;
     const pairs = [];   // となり合う月（どちらも金額を決める月）と、その差
     for (let i = 0; i + 1 < n; i++) {
       const a = parseDate(vars[i] + "-01");
@@ -326,21 +295,13 @@ function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, 
     }
     for (const k of vars) {
       const i = at.get(k);
-      {                                                           // 1か月の上限（上の maxCap・bandCap）
+      {                                                           // 1か月の上限（上の bandCap）
         const a = vec(); a[i] = 1;
-        rows.push({ a, op: "<=", b: m === "max" ? maxCap(k) : bandCap(k) });
+        rows.push({ a, op: "<=", b: bandCap(k) });
       }
       if (k in underAt) {                                         // x + 足りない分 ≥ 下限
         const a = vec(); a[i] = 1; a[underAt[k]] = 1;
         rows.push({ a, op: ">=", b: lo(k) });
-      }
-    }
-    for (const [upper, lower, t] of borders) {                    // 上の段階の月 ≥ さかい目 ≥ 下の段階の月
-      for (const k of vars) {
-        if (isAny(k)) continue;
-        const a = vec();
-        if (order(k) === upper) { a[at.get(k)] = 1; a[t] = -1; rows.push({ a, op: ">=", b: 0 }); }
-        if (order(k) === lower) { a[at.get(k)] = -1; a[t] = 1; rows.push({ a, op: ">=", b: 0 }); }
       }
     }
     for (const [p, q, j] of pairs) {                              // |x_p − x_q| ≤ 差
@@ -361,7 +322,7 @@ function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, 
     // 減らしたい月（1・2・3）は、年の合計が変わらない範囲で、できるだけ少なく（1がいちばん強く減らす）
     const lessReduce = vec();
     for (const k of vars) if (!isAny(k) && level(k) <= REDUCE_LEVEL_MAX) lessReduce[at.get(k)] = -(REDUCE_LEVEL_MAX + 1 - level(k));
-    const goals = m === "max" ? [total, lessReduce, pref, flatter] : [lessUnder, total, pref, flatter];
+    const goals = [lessUnder, total, lessReduce, pref, flatter];
 
     let x = null;
     for (const goal of goals) {
@@ -374,8 +335,7 @@ function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, 
     return x.slice(0, n);
   };
 
-  // 枠を守る：枠の中で。多く稼ぐ：枠は気にせず、稼ぎたさの順序だけ守って
-  const x = solve(mode);
+  const x = solve();
   if (!x) return null;
 
   // ----- 1,000円単位にする：まず切り捨て、余った分を上限を超えない範囲で1,000円ずつ戻す -----
@@ -387,10 +347,7 @@ function proposePlanLP(months, levels, fixedValue, monthLimit, yearLimit, mode, 
     changed = false;
     for (const k of backOrder) {
       if (amount[k] + 1 > x[at.get(k)] + 1) continue;                     // 計算した額より1,000円以上多くはしない
-      if (amount[k] + 1 > (mode === "max" ? maxCap(k) : bandCap(k)) + 1e-9) continue;
-      // 多く稼ぐ：稼ぎたさが上の月より多くしない（稼ぎたさの順序を守る）
-      if (mode === "max" && !isAny(k) &&
-          vars.some(o => !isAny(o) && level(o) > level(k) && amount[k] + 1 > amount[o])) continue;
+      if (amount[k] + 1 > bandCap(k) + 1e-9) continue;
       if (constraints.some(c => c.keys.includes(k) && slack(c) < 1 - 1e-9)) continue;
       amount[k] += 1;
       changed = true;
