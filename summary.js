@@ -251,9 +251,7 @@ function renderSummary(container, ctx) {
     `年の上限から ＝ 年の上限 −（${year}年1月〜${monthName(target)}の前の月までの収入）。`,
     "各月の金額：今月までの月と全部確定した月は確定額（自動確定・見込みを含む）。" +
     "まだ決まっていない月は、確定したバイト先は確定額、ほかはカレンダー＋仮シフトの額。カレンダーのシフトも確定もない月（仮シフトだけの月も）は、予定金額に入力があればその額を使います。",
-    `あと ＝ 上限 − カレンダーから − 仮シフト。上限：3か月平均は月 ${formatYen(limit)}、年は ${formatYen(yearLimit)}（バイト先設定で変更できます）。`,
-    "平均外ならあと ＝ 年の上限から − カレンダーから − 仮シフト。3か月平均に入れない（平均外の）バイト先なら、3か月平均と予定金額は関係ないので、年の上限までこれだけ稼げます。",
-  ]);
+    `あと ＝ 上限 − カレンダーから − 仮シフト。上限：3か月平均は月 ${formatYen(limit)}、年は ${formatYen(yearLimit)}（バイト先設定で変更できます）。`,  ]);
   box1.appendChild(el("p", "subtitle", `${monthName(m0)}どれだけ働いてよいか`));
 
   // --- まず大きく：上限・カレンダーから・あと ---
@@ -261,10 +259,6 @@ function renderSummary(container, ctx) {
   addRow(box1, "カレンダーから", formatYen(calendarAll));
   if (tentativeAll !== 0) addRow(box1, "仮シフト", formatYen(tentativeAll));
   addRow(box1, "あと", formatYen(Math.max(0, remain)), remain < 0 ? "over" : "total strong");
-  // 平均外のバイト先なら、3か月平均と予定金額は気にしなくてよいので、年の上限からだけで決まる
-  //   平均外ならあと ＝ 年の上限から − カレンダーから − 仮シフト
-  const outsideRemain = yearCap - calendarAll - tentativeAll;
-  addRow(box1, "平均外ならあと", formatYen(Math.max(0, outsideRemain)), "dim");
 
   if (remain < 0) {
     box1.appendChild(el("p", "warn", `上限を${formatYen(-remain)}超えています。`));
