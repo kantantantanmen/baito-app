@@ -36,19 +36,11 @@ function fixedInfoOf(ctx, d) {
 function fixedValueOf(ctx, d, all = false) {
   const info = fixedInfoOf(ctx, d);
   if (info) return all ? info.valueAll : info.value;
+  // 来月から先の月は、カレンダーにシフトがあっても案で金額を決める（この画面は予定金額優先）
+  // 📌 で金額を固定した月だけ、その予定金額で決まっている月として扱う（金額が入っているときだけ）
   const key = monthKey(d);
-  const x = monthInfo(ctx.income, ctx.plans, key, !all, "calendar");
-  // 来月から先でも、カレンダーのシフトや一部確定があって、予定金額を入れても使われない月は、
-  // 表と同じ額（カレンダー・確定）で決まっている月として扱う（仮シフトだけの月は予定金額を使うので、案を作る月のまま）
-  if (!usesPlanAmount(ctx, key)) return x.value;
-  // 📌 で金額を固定した月も、決まっている月として扱う（金額が入っているときだけ）
-  if (isPinnedMonth(ctx, key)) return x.value;
+  if (isPinnedMonth(ctx, key)) return ctx.plans[key];
   return null;
-}
-
-// 予定金額を入れたら、その金額が使われる月か（カレンダーのシフトも確定もない月）
-function usesPlanAmount(ctx, key) {
-  return monthInfo(ctx.income, { ...ctx.plans, [key]: 1 }, key, true, "calendar").source === "plan";
 }
 
 // 📌 で固定していて、収入の予定が入っている月か
@@ -122,13 +114,14 @@ function buildPlan(container, ctx, onChange) {
       "📌：金額を自分で決めたい月は、収入の予定を入れて 📌 を押します。案を作っても、その月は上書きされず、" +
       "その金額をもとにほかの月を調整します。もう一度押すと固定をやめます。",
       "3. 入った金額は自分で直せます。今月までの月と、全部のバイト先が確定した月は、確定額（自動確定・見込みを含む）を使うので入力できません。" +
-      "来月から先の月でも、カレンダーのシフトや確定がある月は、予定金額ではなくその額を計算に使います（入力欄の下に出ます）。" +
-      "案を作るときも、その月はその額で決まっているものとして、ほかの月を決めます。",
+      "この画面は予定金額優先です。来月から先の月は、カレンダーにシフトがあっても、収入の予定に入れた金額で3か月平均と年の合計を計算します。" +
+      "収入の予定が空の月だけ、カレンダー＋仮シフト（確定したバイト先は確定額）の額を使います。" +
+      "シフトがある月は、入力欄の下に参考としてカレンダー＋仮シフトの額を出し、収入の予定と違うときは色を付けます。" +
+      "カレンダーの額にしたい月は、その額を入れて 📌 で固定してください。",
       "収入確定をした後にもう一度押すと、確定した金額をもとに、先の月の案を作り直します。",
       "3か月平均：先々月・先月・その月の3か月の収入の平均です（例：12月の行は10月・11月・12月の平均）。" +
       "3か月平均には、バイト先設定で平均に入れないバイト先の分は入れません。年の合計には平均外の分も入れます。" +
       "決まっている月で平均外の分があるときは、金額の下に「平均外も含めると」の額を出します。マウスを乗せると計算式が出ます。",
-      "各月の金額：" + MONTH_VALUE_TEXT,
     ], "plan"),
     el("p", "muted intro",
       "月ごとに「稼ぎたさ」を選んで「稼ぎたさから案を作る」を押すと、上限を超えないように収入の予定が入ります。金額は自分で直せます。"),
@@ -234,8 +227,9 @@ function refreshPlan(container, ctx) {
   for (const [input, value] of [[container.limitInputs.month, limit], [container.limitInputs.year, yearLimit]]) {
     if (document.activeElement !== input) input.value = value;
   }
-  const valueOf = (d) => monthInfo(income, plans, monthKey(d), true, "calendar").value;      // 3か月平均用（平均外は除く）
-  const valueAllOf = (d) => monthInfo(income, plans, monthKey(d), false, "calendar").value; // 年の合計用（平均外も含む）
+  // この画面は予定金額優先：来月から先の月は、収入の予定に入力があればその額（空ならカレンダー＋仮シフト）
+  const valueOf = (d) => monthInfo(income, plans, monthKey(d), true, "plan").value;      // 3か月平均用（平均外は除く）
+  const valueAllOf = (d) => monthInfo(income, plans, monthKey(d), false, "plan").value; // 年の合計用（平均外も含む）
   // 「カレンダー」は、この画面ではカレンダー＋仮シフトと書く
   const sourceName = (x) => {
     const s = sourceText(x);
@@ -288,20 +282,26 @@ function refreshPlan(container, ctx) {
       else if (plan > hi) r.bandNote.textContent = "枠より多い";
     }
 
-    // 来月から先の月：シフト（カレンダー・仮シフト）や確定があって、予定金額ではなくその額を使う月だけ書く
+    // 来月から先の月：シフト（カレンダー・仮シフト）や確定がある月は、その額を書く
+    //   収入の予定が空 ：その額を計算に使う
+    //   収入の予定がある：計算には収入の予定を使うので、参考として出す（違うときは色を付ける）
     r.usedNote.textContent = "";
+    r.usedNote.classList.remove("plan-diff");
     if (fixed === null) {
-      const now = monthInfo(income, plans, r.key, true, "calendar");
-      const s = sourceText(now);
-      if (s !== "予定金額" && s !== "―") {
-        // 3か月平均に使う額（平均外のバイト先は除く）。平均外の分があれば、年の合計に使う額も出す
+      const cal = monthInfo(income, {}, r.key, true, "calendar");      // 予定金額を使わないときの額（平均内）
+      const calAll = monthInfo(income, {}, r.key, false, "calendar").value;
+      if (sourceText(cal) !== "―") {
         // 平均外のバイト先しかない月は、下の「平均外も含めると」で分かるので、もと（平均外のみ）は書かない
-        const sourcePart = now.outsideOnly ? "" : `（${sourceName(now)}）`;
-        r.usedNote.append(`計算に使う${monthName(r.month)}の収入（平均内）：${formatYen(now.value)}${sourcePart}`);
-        const all = valueAllOf(r.month);
-        if (all !== now.value) {
-          r.usedNote.append(el("div", "", `平均外も含めると ${formatYen(all)}（年の合計に使う）`));
+        const sourcePart = cal.outsideOnly ? "" : `（${sourceName(cal)}）`;
+        r.usedNote.append(plan == null
+          ? `計算に使う${monthName(r.month)}の収入（平均内）：${formatYen(cal.value)}${sourcePart}`
+          : `参考：シフトでは（平均内）${formatYen(cal.value)}${sourcePart}`);
+        if (calAll !== cal.value) {
+          r.usedNote.append(el("div", "", plan == null
+            ? `平均外も含めると ${formatYen(calAll)}（年の合計に使う）`
+            : `平均外も含めると ${formatYen(calAll)}`));
         }
+        r.usedNote.classList.toggle("plan-diff", plan != null && plan !== cal.value);
       }
     }
 
