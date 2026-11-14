@@ -184,7 +184,8 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
     "日付が過ぎた仮シフト（日付が未定のものは、入る予定だった月が過ぎたもの）は薄い赤になります。" +
     "扶養を超えないように、働いたとして計算に入れたままにしています。働いたなら「シフトとして追加」、働かなかったなら「削除」をしてください。",
     "ここには、日付を「未定」にして月だけで登録したものが出ます（その月の残りの日の真ん中あたりで働いたとして計算します）。",
-    "同じ内容のものは「回数」で何回分かまとめて入れられます（「× 3回」）。押すと1回ずつに分けて出し、▲ で元に戻ります。1回ずつを押すと、その1回分だけを直せます。",
+    "同じ内容のものは「回数」で何回分かまとめて入れられます（「× 3回」）。その行を押すと、回数や時間などをまとめて直せます。" +
+    "▼ を押すと1回ずつに分けて出し、▲ で元に戻ります。1回ずつを押すと、その1回分だけを直せます（日付を入れる・消すなど）。",
     "週払いなどで、働く日によって振り込まれる月が変わるときは、仮シフトの画面で「振り込まれる月」を選びます。",
     "Google カレンダーに同じ日・同じバイト先・重なる時間のシフトが入ると、その仮シフトは自動で消えます。",
   ]);
@@ -213,23 +214,30 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
     const amountOf = (list) => (found ? formatYen(list.reduce((s, x) => s + x.pay, 0)) + (past ? "（働いた扱い）" : "")
       : "バイト先が見つかりません");
 
-    // 1行目：「12月中・日付未定 17:00〜22:00　たいら　× 3回　18,000円」
-    // 何回分かまとめたものは、押すと1回ずつに分けて出し（▼）、▲ を押すと元に戻す
+    // 1行目：「12月中・日付未定 17:00〜22:00　たいら　× 3回　18,000円　▼」
+    // 押すと、まとめた全体（回数・時間など）を直す画面が開く
+    // 何回分かまとめたものは、▼ を押すと1回ずつに分けて出し、▲ を押すと元に戻す
     const row = el("button", `tentative-row${past ? " past" : ""}${counted ? " count" : ""}${many ? " group" : ""}`);
     row.type = "button";
     row.append(el("span", "tentative-when", whenText), el("span", "tentative-what", what));
     if (many) row.append(el("span", "tentative-times", `× ${times}回`));
     row.append(el("span", "value", amountOf(shifts)));
-    if (many) row.append(el("span", "tentative-toggle", open ? "▲" : "▼"));
-    row.onclick = () => {
-      if (!many) return onOpen(t);
-      if (open) expandedTentatives.delete(t.id);
-      else expandedTentatives.add(t.id);
-      renderTentatives(container, viewMonth, workplaces, onOpen, onAdd);
-    };
+    if (many) {
+      const toggle = el("span", "tentative-toggle", open ? "▲" : "▼");
+      toggle.setAttribute("role", "button");
+      toggle.setAttribute("aria-label", open ? "まとめて出す" : "1回ずつに分けて出す");
+      toggle.onclick = (e) => {
+        e.stopPropagation(); // 行を押したこと（直す画面を開く）にしない
+        if (open) expandedTentatives.delete(t.id);
+        else expandedTentatives.add(t.id);
+        renderTentatives(container, viewMonth, workplaces, onOpen, onAdd);
+      };
+      row.append(toggle);
+    }
+    row.onclick = () => onOpen(t);
     container.append(row);
 
-    // 分けて出した1回ずつ。押すと、その1回分を直す画面が開く（日付を入れる・消すなども1回分だけ）
+    // 分けて出した1回ずつ。押すと、その1回分を直す画面が開く（日付を入れる・消すなども1回分だけ。回数は直さない）
     if (open) {
       const one = tentativeShifts({ ...t, count: 1 }, workplaces);
       for (let i = 0; i < times; i++) {
@@ -240,7 +248,7 @@ function renderTentatives(container, viewMonth, workplaces, onOpen, onAdd) {
           el("span", "tentative-what", what),
           el("span", "value", amountOf(one)),
         );
-        unit.onclick = () => onOpen(t);
+        unit.onclick = () => onOpen(t, { unit: true });
         container.append(unit);
       }
     }

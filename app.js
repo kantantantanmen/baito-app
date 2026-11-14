@@ -534,10 +534,11 @@ function openAddShift(day) {
 }
 
 // 仮シフトを押したとき：直す・削除・Google カレンダーに追加
-function openTentative(t) {
+// opts.unit：何回分かまとめた仮シフトの、1回分だけを開くとき
+function openTentative(t, opts = {}) {
   // 日付が未定の仮シフトは、その月の1日を仮の日付として渡す（未定をやめたときの初期値）
   const day = t.date || `${t.month}-01`;
-  openAddDialog(day, writableCalendars(), loadMonth, { tentative: t, onSaved: renderAll });
+  openAddDialog(day, writableCalendars(), loadMonth, { tentative: t, unit: !!opts.unit, onSaved: renderAll });
 }
 
 // 上の「＋ シフト」ボタン：表示中の月が今月なら今日、違えばその月の1日

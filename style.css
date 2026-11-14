@@ -508,7 +508,9 @@ button.day-row:hover { background: #f1f3f4; }
 .tentative-row.group .tentative-what { flex: 0 0 auto; }
 .tentative-row.group > * { flex-shrink: 0; }
 .tentative-row.group > .tentative-when { flex-shrink: 1; }
-.tentative-toggle { font-size: 0.75rem; opacity: 0.7; }
+/* ▼ ▲：行とは別に押せるように、小さいボタンの見た目にする */
+.tentative-toggle { font-size: 0.75rem; padding: 4px 8px; margin: -4px -6px -4px 0; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+.tentative-toggle:hover { background: #e3e8f7; }
 .tentative-row.unit { margin-left: 16px; width: calc(100% - 16px); padding-top: 6px; padding-bottom: 6px; font-size: 0.9em; }
 .count-input { width: 64px !important; }
 

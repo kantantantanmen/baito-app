@@ -33,14 +33,18 @@ function showDialogMessage(title, text) {
 // onAdded: Google カレンダーに追加できたら呼ぶ
 // options.mode: "google"（Google カレンダーに追加する画面）か "tentative"（仮シフトを追加する画面）
 // options.tentative: 開く仮シフト（押した仮シフトを直す・カレンダーに入れるとき。mode は "tentative" 扱い）
+// options.unit: 何回分かまとめた日付未定の仮シフトの、1回分だけを開くとき（回数の欄は出さない）
+//   unit でないときに日付未定の仮シフトを開くと、まとめた全体（回数・時間など）を直す
 // options.onSaved: 仮シフトを保存・削除したら呼ぶ
 function openAddDialog(day, calendars, onAdded, options = {}) {
   const tentative = options.tentative || null;
   const onSaved = options.onSaved || (() => {});
   const isTentativeMode = options.mode === "tentative" || !!tentative;
   const groupCount = tentative && isCountTentative(tentative) ? Number(tentative.count) || 1 : 1;
+  const isUnit = !!options.unit && groupCount > 1;   // まとめたものの1回分
+  const isWholeGroup = !isUnit && groupCount > 1;    // まとめたもの全体
   const dialogTitle = tentative
-    ? (groupCount > 1 ? `仮シフト（× ${groupCount}回のうち1回）` : "仮シフト")
+    ? (isUnit ? `仮シフト（× ${groupCount}回のうち1回）` : isWholeGroup ? `仮シフト（× ${groupCount}回）` : "仮シフト")
     : isTentativeMode ? "仮シフトを追加" : "シフトを追加";
   const workplaces = loadWorkplaces().filter(w => w.name);
   if (workplaces.length === 0) {
@@ -95,11 +99,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   month.min = thisMonth; // 過ぎた月には作れない
   month.value = tentative && tentative.month ? tentative.month : (day.slice(0, 7) < thisMonth ? thisMonth : day.slice(0, 7));
   // 回数：同じ内容の日付未定の仮シフトを、何回分まとめて入れるか（「× 3 回」）
-  // 何回分かまとめたものの1回分を開いたときは、その1回分を直すので1から始める
-  const countInput = numberInput(1, 1);
+  // 保存した日付未定の仮シフトを開いたときは、その回数から始める（1回分を開いたときは回数の欄を出さない）
+  const countInput = numberInput(tentative && isCountTentative(tentative) && !isUnit ? groupCount : 1, 1);
   countInput.step = 1;
   countInput.classList.add("count-input");
-  const countValue = () => Math.max(1, Math.floor(Number(countInput.value) || 1));
+  const countValue = () => (isUnit ? 1 : Math.max(1, Math.floor(Number(countInput.value) || 1)));
 
   let firstPlace = workplaces.some(w => w.name === last.place) ? last.place : workplaces[0].name;
   if (tentative && workplaces.some(w => w.name === tentative.place)) firstPlace = tentative.place;
@@ -318,6 +322,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     const del = el("button", "danger", "削除");
     del.type = "button";
     del.onclick = () => {
+      // まとめたもの全体を開いたときは、全部消してよいか聞く
+      if (isWholeGroup && !confirm(`× ${groupCount}回分をまとめて削除します。よろしいですか？`)) return;
       // 何回分かまとめたものの1回分なら、1回分だけ減らす
       if (splitFrom && restCount > 0) finishSplit();
       else removeTentative(tentative.id);
@@ -329,8 +335,9 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   buttons.append(cancel);
 
   // 日付未定の仮シフトを開いたとき：日付を入れると、その日の仮シフト（または予定）になる
-  // 何回分かまとめたもの（× 3回 など）は、開いた1回分だけを直す・日付を入れる・消す。残りはそのまま残る
-  const splitFrom = tentative && isCountTentative(tentative) ? tentative : null;
+  // 何回分かまとめたもの（× 3回 など）の1回分を開いたときは、その1回分だけを直す・日付を入れる・消す。残りはそのまま残る
+  // まとめたもの全体を開いたときは、全体をそのまま直す（splitFrom なし）
+  const splitFrom = tentative && isCountTentative(tentative) && !isWholeGroup ? tentative : null;
   const restCount = splitFrom ? Math.max(0, (Number(splitFrom.count) || 1) - 1) : 0;
   const splitNote = el("p", "note small");
   // 保存した仮シフトを開いたのに「Google カレンダーに追加」が出せないとき、その理由とやること
@@ -357,7 +364,9 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     date.disabled = isCount; // 未定のときは日付を入れない（欄は「未定」のチェックのために残す）
     if (isCount && date.value) month.value = date.value.slice(0, 7) < thisMonth ? thisMonth : date.value.slice(0, 7);
     monthField.hidden = !isCount;
-    countField.hidden = !isCount;
+    countField.hidden = !isCount || isUnit;
+    // まとめたもの全体を直すときは日付を入れない（日付を入れるのは1回ずつに分けてから）
+    dateField.hidden = isWholeGroup;
     countNote.hidden = !isCount;
     // 「＋ 時間」は時給のバイト先で、日付が決まっているときだけ
     const canAddTime = isHourly() && !isCount;
@@ -370,7 +379,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     if (splitFrom && restCount > 0) {
       const rest = `残りの${restCount}回は、${monthName(parseDate(`${splitFrom.month}-01`))}中・日付未定のまま残ります。`;
       splitNote.textContent = isCount
-        ? `× ${splitFrom.count}回のうちの1回分を直します（回数を増やすと、その回数分になります）。${rest}`
+        ? `× ${splitFrom.count}回のうちの1回分を直します。${rest}`
         : `この日の1回分を、日付ありの仮シフト（または Google カレンダーの予定）にします。${rest}`;
     }
 
