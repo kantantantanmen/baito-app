@@ -198,11 +198,13 @@ function renderSummary(container, ctx) {
   const i1 = monthInfo(incomeCalendar, {}, monthKey(n1), false, "calendar");
   const n1Fixed = i1.allConfirmed;
   const withTentative = monthInfo(income, {}, monthKey(n1), false, "calendar").value; // カレンダー＋仮シフト
+  // そのうち3か月平均に入れる額。上の「カレンダー＋仮シフト」と同じもと（シフト）から計算する
+  // （シフトが仮シフトだけでも、予定金額は使わない）
+  const withTentativeAvg = monthInfo(income, {}, monthKey(n1), true, "calendar").value;
   const plan1 = planFor(plans, monthKey(n1));
   const nextExtra = [
     ["カレンダー＋仮シフト", formatYen(withTentative), "big"], // 合計と同じ大きさで出す
-    // 3か月平均に入れる額（集計の月平均の表の「収入」、カレンダー優先と同じ）
-    ["うち平均に入る額", formatYen(avgValue(n1)), "ref"],
+    ["うち平均に入る額", formatYen(withTentativeAvg), "ref"],
     [`参考：予定金額の${monthName(n1)}`, plan1 == null ? "未設定" : formatYen(plan1), "ref"],
   ];
   container.appendChild(
@@ -211,9 +213,8 @@ function renderSummary(container, ctx) {
               nextExtra, tentativesFor(ctx.activeTentatives, n1), "",
               "合計は、カレンダーのシフトだけで計算しています（仮シフトは入れません）。" +
               "仮シフトも入れた額は「カレンダー＋仮シフト」の行に出しています。" +
-              "「うち平均に入る額」は、そのうち3か月平均の計算に入れる額です（平均外のバイト先の分は入れません）。" +
-              "集計の月平均の表の「収入」（カレンダー優先）と同じ額です。" +
-              "カレンダーのシフトがない月（仮シフトだけの月も）は、予定金額に入力があればその額になります。" +
+              "「うち平均に入る額」は、「カレンダー＋仮シフト」のうち3か月平均の計算に入れる額です（平均外のバイト先の分は入れません）。" +
+              "シフトが仮シフトだけでも、予定金額は使わずに仮シフトから計算します。" +
               "「参考：予定金額」は予定金額の画面で入れた金額で、合計には入れていません。"));
 
   // ---------- 3. 来月の収入の上限（＝今月どれだけ働いてよいか） ----------
