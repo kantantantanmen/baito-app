@@ -337,6 +337,20 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     buttons.append(del);
   }
   buttons.append(cancel);
+  // ボタンの文字を変える（長押しで開いた画面では、文字を小さくするための入れ物に入れる）
+  const setLabel = (button, text) => {
+    if (!alsoTentative) {
+      button.textContent = text;
+      return;
+    }
+    button.textContent = "";
+    button.append(el("span", "btn-label", text));
+  };
+  if (alsoTentative) {
+    // 「シフトとして追加・仮シフトとして追加・閉じる」は長いので、スマホではこの画面だけ文字を小さくする
+    buttons.classList.add("compact");
+    for (const b of [add, saveTentative, cancel]) setLabel(b, b.textContent);
+  }
 
   // 日付未定の仮シフトを開いたとき：日付を入れると、その日の仮シフト（または予定）になる
   // 何回分かまとめたもの（× 3回 など）の1回分を開いたときは、その1回分だけを直す・日付を入れる・消す。残りはそのまま残る
@@ -591,7 +605,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       return;
     }
     add.disabled = true;
-    add.textContent = "追加中...";
+    setLabel(add, "追加中...");
     const cal = calendars.find(c => c.id === calendarId);
     try {
       // 足した時間は、それぞれ別の予定にする（休憩だけ同じ設定を付ける）。全部いっしょに送る
@@ -635,7 +649,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     } catch (err) {
       error.textContent = err.message;
       add.disabled = false;
-      add.textContent = "シフトとして追加";
+      setLabel(add, "シフトとして追加");
       renumberTimes();
     }
   };
