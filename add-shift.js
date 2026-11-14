@@ -79,6 +79,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   // 日付は未定（仮シフトの画面だけ）：チェックすると、日付の代わりに「月」と「回数」を入れる
   // 日付の欄を空にしたときも、未定として扱う
   let kind = tentative && isCountTentative(tentative) ? "count" : "date";
+  // 日付ありの仮シフトを開いたとき、同じ日・同じバイト先（と役職）のほかの日付ありの仮シフト（まとめて出す）
+  const siblingTentatives = tentative && !isCountTentative(tentative)
+    ? loadTentatives().filter(x => !isCountTentative(x) && x.id !== tentative.id && x.date === tentative.date &&
+        x.place === tentative.place && (x.role || "") === (tentative.role || ""))
+    : [];
   const undecided = el("input");
   undecided.type = "checkbox";
   undecided.checked = kind === "count";
@@ -143,7 +148,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
 
   // 同じ日に2回目・3回目のシフトがあるとき：「＋ 時間」で時間の欄を足す（時給のバイト先で、日付が決まっているときだけ）
   // 足した時間は、それぞれ別のシフト（Google カレンダーの予定・仮シフト）として保存する
-  const extraTimes = []; // [{ start, end, row }]
+  const extraTimes = []; // [{ start, end, row, orig }]（orig：保存済みの仮シフト。足した時間は null）
+  const removedTentatives = []; // × で消した、保存済みの仮シフト（「更新」などで消す）
   const extraBox = el("div");
   const addTimeButton = el("button", "add-time", "＋ 時間");
   addTimeButton.type = "button";
@@ -173,13 +179,15 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     if (!next) return;
     start.value = next.start.value;
     end.value = next.end.value;
+    // 繰り上げた時間が保存済みの仮シフトなら、その時間は開いた仮シフトが引き継ぐので、元のほうは消す
+    if (next.orig) removedTentatives.push(next.orig);
     next.row.remove();
     renumberTimes();
     update();
   };
   // 時間の欄を1つ足す。values があればその時間を入れる（なければ nextTimeRange で決める：
   // シフト時間設定の時間でまだ入っていないもの、なければ一番遅い時間の1時間後から2時間）
-  const addTimeRow = (values) => {
+  const addTimeRow = (values, orig = null) => {
     if (!values) {
       // この画面の時間に加えて、その日にもう入っているシフト・仮シフトの時間も「入っている」として数える
       const current = [...registeredTimes(), { start: start.value, end: end.value },
@@ -192,9 +200,10 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     const remove = removeButton();
     const row = field("", s, "〜", e, remove);
     row.classList.add("time-row");
-    const x = { start: s, end: e, row };
+    const x = { start: s, end: e, row, orig };
     remove.onclick = () => {
       extraTimes.splice(extraTimes.indexOf(x), 1);
+      if (x.orig) removedTentatives.push(x.orig);
       row.remove();
       renumberTimes();
       update();
@@ -328,9 +337,12 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     del.onclick = () => {
       // まとめたもの全体を開いたときは、全部消してよいか聞く
       if (isWholeGroup && !confirm(`× ${groupCount}回分をまとめて削除します。よろしいですか？`)) return;
+      // 同じ日の時間をまとめて出しているときは、全部消す（シフトの画面と同じ）
+      const group = [tentative, ...siblingTentatives];
+      if (group.length > 1 && !confirm(`この日の${group.length}つの時間を全部削除しますか？`)) return;
       // 何回分かまとめたものの1回分なら、1回分だけ減らす
       if (splitFrom && restCount > 0) finishSplit();
-      else removeTentative(tentative.id);
+      else for (const x of group) removeTentative(x.id);
       shiftDialog.close();
       onSaved();
     };
@@ -449,11 +461,17 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     if (bonusNote.value.trim()) t.bonusNote = bonusNote.value.trim();
     return t;
   };
-  // 足した時間の分の仮シフト（休憩は同じ。ボーナス・メモは1つ目の時間だけに付ける）
+  // 足した時間の分の仮シフト（バイト先・役職・休憩は同じ。ボーナス・メモは1つ目の時間だけに付ける）
+  // 保存済みの仮シフトの時間なら、その仮シフトを直す（ボーナス・メモはその仮シフトのものを残す。シフトの画面と同じ）
   const extraDraft = (x) => {
     const t = { ...draft(), id: undefined, start: x.start.value, end: x.end.value };
     delete t.bonus;
     delete t.bonusNote;
+    if (x.orig) {
+      t.id = x.orig.id;
+      if (x.orig.bonus) t.bonus = x.orig.bonus;
+      if (x.orig.bonusNote) t.bonusNote = x.orig.bonusNote;
+    }
     return t;
   };
   // 足した時間の分の、予定ごとの設定（休憩だけ）
@@ -619,6 +637,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
           saveEdits(all);
         }
         putEventLocally(cal, made); // 読み直しを待たずに、カレンダーに出す
+        if (x.orig) removeTentative(x.orig.id); // 保存済みの仮シフトの時間なら、その仮シフトは消す（二重に数えない）
         extraTimes.splice(extraTimes.indexOf(x), 1);
         x.row.remove();
       }));
@@ -642,6 +661,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       // 未定の仮シフト（回数つき）なら、1回分だけ減らす
       if (splitFrom) finishSplit();
       else if (tentative) removeTentative(tentative.id);
+      for (const x of removedTentatives) removeTentative(x.id); // × で消した時間
       remember();
       shiftDialog.close();
       renderAll(); // 手元の予定で先に描き直す
@@ -670,8 +690,9 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     } else {
       upsertTentative(draft());
     }
-    // 足した時間は、それぞれ別の仮シフトにする
+    // 足した時間は、それぞれ別の仮シフトにする（保存済みの仮シフトの時間は、その仮シフトを直す）
     for (const x of activeExtras()) upsertTentative(extraDraft(x));
+    for (const x of removedTentatives) removeTentative(x.id); // × で消した時間
     remember();
     shiftDialog.close();
     onSaved();
@@ -684,6 +705,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     if (isTentativeMode || (alsoTentative && !canAddToGoogle)) saveTentative.onclick();
     else submit();
   };
+
+  // 日付ありの仮シフトを開いたとき：同じ日・同じバイト先（と役職）の日付ありの仮シフトも「時間1・時間2…」としてまとめて出す
+  // （シフトの画面と同じ。それぞれ直したり × で消したりでき、「削除」は全部消す）
+  for (const x of siblingTentatives) addTimeRow({ start: x.start, end: x.end }, x);
+  if (siblingTentatives.length > 0) sortTimeInputs([{ start, end }, ...extraTimes]); // 早い時間が時間1になるように
 
   applyDefaultTimes(false); // シフト時間設定で、この曜日の時間が決めてあれば入れる
   showKind();

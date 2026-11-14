@@ -309,7 +309,7 @@ function renderGrid(byDay) {
     if (d.getDay() === 0) cell.classList.add("sun");
     if (isHoliday(key)) cell.classList.add("holiday");
     cell.onclick = () => selectDay(key); // 押すと、カレンダーの下にその日の予定の一覧を出す
-    onLongPress(cell, () => openAddShift(key, true)); // 長押しでシフト（または仮シフト）を追加
+    onLongPress(cell, () => openAddShift(key)); // 長押しでシフト（または仮シフト）を追加
     cell.title = "押すとこの日の予定の一覧、長押しでシフト・仮シフトを追加";
 
     cell.appendChild(el("div", "day-number", String(d.getDate())));
@@ -528,11 +528,11 @@ function writableCalendars() {
   return targets.length > 0 ? targets : calendars.filter(canWrite);
 }
 
-// day: "2026-11-10"。Google カレンダーにシフトを追加する画面を開く（仮シフトは下の「＋ 仮シフト」から）
-// alsoTentative：「仮シフトとして追加」のボタンも出す（日付のマスを長押ししたとき）
-function openAddShift(day, alsoTentative = false) {
+// day: "2026-11-10"。シフトを追加する画面を開く
+// 「シフトとして追加」と「仮シフトとして追加」の両方ができる画面（長押し・上の「＋ シフト」・予定一覧の「＋ シフト」で同じ）
+function openAddShift(day) {
   // Google カレンダーに追加できたら予定を取り直す。仮シフトとして保存したら描き直す
-  openAddDialog(day, writableCalendars(), loadMonth, { alsoTentative, onSaved: renderAll });
+  openAddDialog(day, writableCalendars(), loadMonth, { alsoTentative: true, onSaved: renderAll });
 }
 
 // 仮シフトを押したとき：直す・削除・Google カレンダーに追加

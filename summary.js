@@ -127,29 +127,32 @@ function incomeBox(title, subtitle, income, month, info, slot, extraRows = [], t
       const label = el("span", "income-label");
       label.append(`${r.place}${r.inAverage ? "" : "（平均外）"} `, badge(badgeKind(r)));
       if (r.count > 0) {
-        // どの勤務がこの月の収入になるか（当月払い・翌月払いで変わる）
+        // この月の収入になる勤務の回数と、働く時間の合計
         const tentativeText = r.tentativeCount > 0 ? `（うち仮${r.tentativeCount}回）` : "";
-        label.append(el("span", "income-detail",
-          `${payDatesText(r.payDates)} ・ ${shortDate(r.firstDay)}〜${shortDate(r.lastDay)}の勤務${r.count}回${tentativeText}`));
+        label.append(el("span", "income-detail", `${r.count}回${tentativeText} ・ 合計${formatHours(r.minutes)}`));
       }
       addRow(details, label, formatYen(r.value));
     }
   }
-  // 仮シフトの1回ずつ（日付・時間・バイト先・振込日・金額）
+  // 仮シフト：バイト先ごとに、回数・働く時間の合計・金額
   if (info.source !== "plan" && tentatives.length > 0) {
     const sum = tentatives.reduce((s, x) => s + x.shift.pay, 0);
     const times = tentatives.reduce((s, x) => s + (x.count || 1), 0);
     details.append(el("p", "tentative-sub", `仮シフト ${times}回・${formatYen(sum)}${tentativeNote}`));
-    for (const { t, shift, count } of tentatives) {
+    // 何回分かまとめた日付未定の仮シフトは、shift に回数分の合計が入っている（count が回数）
+    const byPlace = new Map(); // バイト先 → { count, minutes, pay }
+    for (const { shift, count } of tentatives) {
+      const g = byPlace.get(shift.place) || { count: 0, minutes: 0, pay: 0 };
+      g.count += count || 1;
+      g.minutes += shift.workMin;
+      g.pay += shift.pay;
+      byPlace.set(shift.place, g);
+    }
+    for (const [place, g] of byPlace) {
       const label = el("span", "income-label");
-      const who = [shift.place, shift.role].filter(Boolean).join(" ");
-      // 日付が未定のものは「12月中・日付未定 17:00-22:00」、日付ありは「12/5 17:00-22:00」
-      const when = isCountTentative(t)
-        ? `${monthName(parseDate(`${t.month}-01`))}中・日付未定 ${t.start}-${t.end}${count > 1 ? ` × ${count}回` : ""}`
-        : `${shortDate(t.date)} ${t.start}-${t.end}`;
-      label.append(`${when} ${who}`);
-      label.append(el("span", "income-detail", `${shortDate(shift.payDate)}振込 ・ ${formatHours(shift.workMin)}`));
-      addRow(details, label, formatYen(shift.pay), "tentative-line");
+      label.append(place);
+      label.append(el("span", "income-detail", `${g.count}回 ・ 合計${formatHours(g.minutes)}`));
+      addRow(details, label, formatYen(g.pay), "tentative-line");
     }
   }
   box.appendChild(details);
