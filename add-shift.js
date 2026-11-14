@@ -35,11 +35,13 @@ function showDialogMessage(title, text) {
 // options.tentative: 開く仮シフト（押した仮シフトを直す・カレンダーに入れるとき。mode は "tentative" 扱い）
 // options.unit: 何回分かまとめた日付未定の仮シフトの、1回分だけを開くとき（回数の欄は出さない）
 //   unit でないときに日付未定の仮シフトを開くと、まとめた全体（回数・時間など）を直す
+// options.alsoTentative: シフトを追加する画面に「仮シフトとして追加」のボタンも出す（日付のマスを長押ししたとき）
 // options.onSaved: 仮シフトを保存・削除したら呼ぶ
 function openAddDialog(day, calendars, onAdded, options = {}) {
   const tentative = options.tentative || null;
   const onSaved = options.onSaved || (() => {});
   const isTentativeMode = options.mode === "tentative" || !!tentative;
+  const alsoTentative = !isTentativeMode && !!options.alsoTentative;
   const groupCount = tentative && isCountTentative(tentative) ? Number(tentative.count) || 1 : 1;
   const isUnit = !!options.unit && groupCount > 1;   // まとめたものの1回分
   const isWholeGroup = !isUnit && groupCount > 1;    // まとめたもの全体
@@ -51,8 +53,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     showDialogMessage(dialogTitle, "先に「バイト先設定」でバイト先を登録してください。");
     return;
   }
-  // Google カレンダーに追加する画面は、書き込めるカレンダーがないと使えない
-  if (!isTentativeMode && calendars.length === 0) {
+  // Google カレンダーに追加する画面は、書き込めるカレンダーがないと使えない（仮シフトとしても追加できる画面は開く）
+  if (!isTentativeMode && !alsoTentative && calendars.length === 0) {
     showDialogMessage(dialogTitle,
       "Google にログインして、書き込めるカレンダーにチェックを入れると追加できます。" +
       "入るつもりのシフトは、カレンダーの下の「＋ 仮シフト」から仮シフトとして追加できます。");
@@ -313,9 +315,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   cancel.onclick = () => shiftDialog.close();
   const add = el("button", "primary", "シフトとして追加"); // Google カレンダーに予定を作る
   add.type = "button";
-  const saveTentative = el("button", canAddToGoogle ? "" : "primary", tentative ? "更新" : "仮シフトを追加");
+  const saveTentative = el("button", canAddToGoogle ? "" : "primary",
+    tentative ? "更新" : alsoTentative ? "仮シフトとして追加" : "仮シフトを追加");
   saveTentative.type = "button";
-  const tentativeAllowed = isTentativeMode; // シフトを追加する画面では仮シフトにしない
+  // シフトを追加する画面では仮シフトにしない（長押しで開いたときは「仮シフトとして追加」もできる）
+  const tentativeAllowed = isTentativeMode || alsoTentative;
   const buttons = el("div", "dialog-buttons");
   buttons.append(add, saveTentative);
   if (tentative) {
@@ -498,7 +502,11 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   // 働く時間と給料の見込みを表示する
   const update = () => {
     preview.textContent = "";
-    error.textContent = problem();
+    // 長押しで開いた画面（Google カレンダーにも仮シフトにもできる）では、仮シフトにだけ関係する注意は
+    // 「仮シフトとして追加」を押したときに出す（Google カレンダーには追加できるので、先に赤い字を出さない）
+    const p = problem();
+    const tentativeOnly = p === "この時間にはもうシフトが入っています。" || p.startsWith("過ぎた日付は仮シフトにできません");
+    error.textContent = alsoTentative && canAddToGoogle && tentativeOnly ? "" : p;
     const past = (kind === "count" && isTentativeMode)
       ? month.value && month.value < thisMonth
       : date.value && date.value < today;
@@ -656,9 +664,10 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
   };
 
   // 入力欄で Enter を押したとき：仮シフトの画面は仮シフトに保存、シフトを追加する画面は Google に追加
+  // （長押しで開いた画面でも、Google カレンダーに追加できなければ仮シフトに保存）
   form.onsubmit = (e) => {
     e.preventDefault();
-    if (tentativeAllowed) saveTentative.onclick();
+    if (isTentativeMode || (alsoTentative && !canAddToGoogle)) saveTentative.onclick();
     else submit();
   };
 
