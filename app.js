@@ -11,6 +11,10 @@ const planView = document.getElementById("plan");
 const statsView = document.getElementById("stats");
 const tentativeView = document.getElementById("tentative");
 const dayListView = document.getElementById("day-list");
+// 前の形（時間つき）のシフトがあるときに、新しい形（終日＋メモに時間）に書き直すボタンを出す場所
+const convertBox = el("div", "convert-note");
+message.after(convertBox);
+let converting = false;
 
 const SELECTED_KEY = "baito-calendars"; // 選んだカレンダーの保存名
 
@@ -416,7 +420,12 @@ function renderAll() {
   let unmatched = 0;
 
   for (const item of items) {
-    const edit = edits[editKey(item)] || {};
+    const edit = { ...(edits[editKey(item)] || {}) };
+    // 終日の予定のメモに時間が2つ以上あるとき、ボーナスは1つ目の時間にだけ付ける（二重に数えない）
+    if (item.lineIndex > 0) {
+      delete edit.bonus;
+      delete edit.bonusNote;
+    }
     item.shift = eventToShift(item.event, workplaces, edit);
     if (item.shift) {
       // 日給は、同じバイト先・同じ日に予定が2つあっても1日分だけ数える（ボーナスは別）
@@ -502,6 +511,7 @@ function renderAll() {
     shifts, viewMonth, unmatched, workplaces, onChange: renderAll,
   };
 
+  renderConvertBox();
   lastByDay = groupByDay([...items, ...tentativeItems]);
   renderGrid(lastByDay);
   renderDayList();
@@ -515,6 +525,36 @@ function renderAll() {
   if (currentView === "confirm") renderConfirm(confirmView, income, viewMonth, workplaces, renderAll);
   if (currentView === "plan") renderPlan(planView, ctx, renderAll);
   if (currentView === "stats") renderStats(statsView, ctx);
+}
+
+// 前の形（時間つきの予定）のシフトがあれば、新しい形（1日・1つのバイト先につき終日の予定1つ、時間はメモ）に
+// 書き直すボタンを出す（読み込んだ範囲の、書き込めるカレンダーの分）
+function renderConvertBox() {
+  convertBox.textContent = "";
+  if (!loadedStart || converting) return;
+  const old = oldStyleShifts(items);
+  if (old.length === 0) return;
+  const button = el("button", "", "新しい形に書き直す");
+  button.type = "button";
+  button.onclick = async () => {
+    if (!confirm(`時間つきのシフトの予定 ${old.length}件を、1日・1つのバイト先ごとに1つの終日の予定にまとめ直します。` +
+                 "時間はメモの後ろに書き、元の予定は消します。よろしいですか？")) return;
+    converting = true;
+    convertBox.textContent = "書き直しています...";
+    try {
+      const { failed } = await convertOldShifts(items, items);
+      if (failed > 0) alert(`${failed}日分は書き直せませんでした。もう一度押してください。`);
+    } finally {
+      converting = false;
+      renderAll();
+      loadMonth();
+    }
+  };
+  convertBox.append(
+    el("span", "", `Google カレンダーに、前の形（時間つき）のシフトの予定が ${old.length}件あります。` +
+                   "終日の予定にまとめて、時間をメモに書く形に直せます。"),
+    button,
+  );
 }
 
 // ===== シフトの追加 =====
@@ -615,7 +655,8 @@ async function loadMonth() {
     const startText = (item) => item.event.start.dateTime || item.event.start.date;
     collected.sort((a, b) => startText(a).localeCompare(startText(b)));
 
-    items = collected;
+    // 終日の予定のメモに書いた時間は、時間の行ごとに時間つきの予定として扱う（calendar-memo.js）
+    items = expandMemoShifts(collected);
     loadedStart = start;
     renderAll();
     message.textContent = "";
@@ -628,9 +669,9 @@ async function loadMonth() {
 // （読み直しは時間がかかるので、先にこれで描いておき、あとから loadMonth で読み直す）
 function putEventLocally(cal, event) {
   if (!cal || !event || !event.id) return;
-  const i = items.findIndex(x => x.cal.id === cal.id && x.event.id === event.id);
-  if (i >= 0) items[i] = { event, cal };
-  else items.push({ event, cal });
+  // 同じ予定の分（メモの時間ごとに分けたものも全部）を入れ替える
+  items = items.filter(x => !(x.cal.id === cal.id && x.event.id === event.id));
+  items.push(...expandMemoShifts([{ event, cal }]));
   const startText = (x) => x.event.start.dateTime || x.event.start.date;
   items.sort((a, b) => startText(a).localeCompare(startText(b)));
 }

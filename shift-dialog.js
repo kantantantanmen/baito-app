@@ -95,7 +95,9 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
 
   // --- 時間 ---
   // 同じ日・同じバイト先（と役職）の、書き込めるカレンダーのシフト（開いた予定のほかに）
+  //   （同じ終日の予定のメモに書いた、ほかの時間も入る。前の形の時間つきの予定も入る）
   const siblings = canWrite && item.shift ? items.filter(x => x !== item && x.shift && !x.event.start.date &&
+    x.cal.id === item.cal.id &&
     x.shift.day === item.shift.day && x.shift.place === item.shift.place && x.shift.role === item.shift.role &&
     isWritable(x)) : [];
   const timeRows = []; // [{ orig: 登録済みの予定（足した時間は null）, start, end, row, del }]
@@ -244,6 +246,8 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
   };
   const editFor = (r) => {
     if (r.orig === item) return currentEdit();
+    // 同じ終日の予定のメモのほかの時間：設定は同じ予定のもの。ボーナスは開いた時間にだけ付ける（二重に数えない）
+    if (r.orig && editKey(r.orig) === key) return sharedEdit();
     if (r.orig) return sharedEdit(loadEdits()[editKey(r.orig)] || {});
     return sharedEdit();
   };
@@ -293,54 +297,43 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
       deleteError.textContent = p;
       return;
     }
-    // 予定ごとの設定を保存する（開いた予定・ほかの時間の予定）
-    const all = loadEdits();
-    const putEdit = (k, e) => {
-      if (Object.keys(e).length > 0) all[k] = e;
-      else delete all[k]; // 何も入力がなければ保存しておく必要がない
-    };
-    if (!removed.includes(item)) putEdit(key, currentEdit());
-    for (const r of timeRows) if (r.orig && r.orig !== item) putEdit(editKey(r.orig), editFor(r));
-    saveEdits(all);
+    // Google カレンダーに書き込むか：時間・日付を変えた、時間を足した・消した、
+    // または前の形（時間つき）の予定や、2つ以上の終日の予定が入っている（1つの終日の予定にまとめ直す）
+    const origs = [...timeRows.map(r => r.orig).filter(Boolean), ...removed];
+    const bases = [...new Map(origs.filter(x => x.base).map(x => [x.base.id, x.base])).values()];
+    const needsWrite = canWrite && (timeRows.some(r => !r.orig || rowChanged(r)) || removed.length > 0 ||
+      origs.some(x => !x.base) || bases.length > 1);
 
-    // Google カレンダーに書き込むこと：時間・日付を変えた予定、足した時間、消した時間
-    const tasks = [];
-    for (const r of timeRows) {
-      if (r.orig && rowChanged(r)) {
-        tasks.push(async () => {
-          const updated = await updateEvent(r.orig.cal.id, r.orig.event.id, eventTimes(day(), r.start.value, r.end.value));
-          putEventLocally(r.orig.cal, updated);
-        });
-      } else if (!r.orig) {
-        tasks.push(async () => {
-          const made = await createEvent(item.cal.id, { summary: original.summary, ...eventTimes(day(), r.start.value, r.end.value) });
-          const e = editFor(r);
-          if (made && made.id && Object.keys(e).length > 0) {
-            const edits = loadEdits();
-            edits[`${item.cal.id}|${made.id}`] = e;
-            saveEdits(edits);
-          }
-          putEventLocally(item.cal, made);
-        });
+    if (!needsWrite) {
+      // 予定ごとの設定だけを保存する（開いた予定・ほかの時間の予定）
+      const all = loadEdits();
+      const putEdit = (k, e) => {
+        if (Object.keys(e).length > 0) all[k] = e;
+        else delete all[k]; // 何も入力がなければ保存しておく必要がない
+      };
+      putEdit(key, currentEdit());
+      for (const r of timeRows) {
+        if (r.orig && editKey(r.orig) !== key) putEdit(editKey(r.orig), editFor(r));
       }
-    }
-    for (const x of removed) {
-      tasks.push(async () => {
-        await deleteEvent(x.cal.id, x.event.id);
-        const edits = loadEdits();
-        delete edits[editKey(x)];
-        saveEdits(edits);
-        removeEventLocally(x.cal.id, x.event.id);
-      });
-    }
-    if (tasks.length === 0) {
+      saveEdits(all);
       shiftDialog.close();
       onChange();
       return;
     }
+
+    // 1日・1つのバイト先につき1つの終日の予定にして、時間はメモに書く（calendar-memo.js）
+    //   開いた予定が新しい形ならそれを書き換え、なければ新しく作る。ほかの予定（前の形・まとめた分）は消す
+    const target = item.base || bases[0] || null;
+    const others = origs.map(x => x.base || x.event);
+    const times = timeRows.map(r => ({ start: r.start.value, end: r.end.value }));
+    // 設定：開いた予定の入力に、まとめるほかの予定（× で消したものは除く）のボーナスなどを足す
+    const kept = timeRows.map(r => r.orig).filter(x => x && editKey(x) !== key);
+    const edit = mergeEdits([currentEdit(), ...kept.map(x => loadEdits()[editKey(x)])]);
     save.disabled = true;
     save.textContent = "更新中...";
-    await finishWrites(tasks);
+    await finishWrites([() => writeDayShift({
+      cal: item.cal, day: day(), summary: original.summary, times, target, others, edit,
+    })]);
   };
   const buttons = el("div", "dialog-buttons");
   buttons.append(save);
@@ -354,7 +347,9 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
       if (targets.length > 1 && !confirm(`この日の${targets.length}つの時間を全部削除しますか？`)) return;
       del.disabled = true;
       del.textContent = "削除中...";
-      await finishWrites(targets.map(x => async () => {
+      // 消す予定（メモに時間を書いた終日の予定は、時間がいくつあっても1つの予定）
+      const events = [...new Map(targets.map(x => [x.event.id, x])).values()];
+      await finishWrites(events.map(x => async () => {
         await deleteEvent(x.cal.id, x.event.id);
         const edits = loadEdits();
         delete edits[editKey(x)]; // この予定用の入力も要らなくなる
@@ -374,7 +369,7 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
   close.onclick = () => shiftDialog.close();
   form.append(
     el("p", "muted small", canWrite
-      ? "※ 日付や時間を変えて「更新」を押すと、Google カレンダーの予定も変わります。"
+      ? "※ 日付や時間を変えて「更新」を押すと、Google カレンダーの予定も変わります（終日の予定にして、時間はメモの後ろに書きます）。"
       : "※ このカレンダーは書き込めないので、日付と時間は Google カレンダーで直してください。"),
     deleteError,
     buttons,

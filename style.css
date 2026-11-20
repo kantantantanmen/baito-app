@@ -339,6 +339,11 @@ tr.ow-bottom td { border-bottom: 2px solid #d93025; }
 
 main { display: flex; flex-direction: column; min-width: 0; }
 #message { padding: 4px 16px; min-height: 1.8em; font-size: 0.85rem; color: var(--muted); }
+/* 前の形のシフトを書き直すお知らせ（なければ何も出さない） */
+.convert-note:empty { display: none; }
+.convert-note { margin: 0 16px 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: #fff8e6; font-size: 0.85rem; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.convert-note button { font-size: 0.85rem; padding: 4px 12px; }
 
 /* ===== 月のカレンダー（7列のマス目） ===== */
 .weekdays, .grid {

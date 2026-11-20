@@ -423,24 +423,8 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     }
   };
 
-  // 入力内容から、Google カレンダーに送る予定を作る
-  // s・e：時間（足した時間の分を作るときに渡す。なければ1つ目の時間）
-  const buildEvent = (s = start.value, e = end.value) => {
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone; // 例 "Asia/Tokyo"
-    let endDay = date.value;
-    if (e <= s) {
-      // 終わりが始まりより前なら、次の日に終わる（夜勤など）
-      const d = parseDate(date.value);
-      d.setDate(d.getDate() + 1);
-      endDay = dateKey(d);
-    }
-    return {
-      // 予定名は「バイト先 役職」。役職名が入っていれば、あとで自動でその役職として計算される
-      summary: role.value ? `${place.value} ${role.value}` : place.value,
-      start: { dateTime: `${date.value}T${s}:00`, timeZone },
-      end: { dateTime: `${endDay}T${e}:00`, timeZone },
-    };
-  };
+  // Google カレンダーの予定名は「バイト先 役職」。役職名が入っていれば、あとで自動でその役職として計算される
+  const eventSummary = () => (role.value ? `${place.value} ${role.value}` : place.value);
 
   // 今の入力から、保存する仮シフトの形を作る
   const draft = () => {
@@ -474,8 +458,6 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     }
     return t;
   };
-  // 足した時間の分の、予定ごとの設定（休憩だけ）
-  const extraEdit = () => (breakInput.value !== "" ? { breakMin: Number(breakInput.value) } : null);
 
   // 入力が足りないか、過ぎていて仮シフトにできないか（理由の文字。問題なければ ""）
   const problem = () => {
@@ -626,37 +608,23 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
     setLabel(add, "追加中...");
     const cal = calendars.find(c => c.id === calendarId);
     try {
-      // 足した時間は、それぞれ別の予定にする（休憩だけ同じ設定を付ける）。全部いっしょに送る
-      // 入れられた分は欄から消す（途中で失敗して押し直したときに、同じ予定を二重に作らない）
-      const results = await Promise.allSettled([...activeExtras()].map(async (x) => {
-        const made = await createEvent(calendarId, buildEvent(x.start.value, x.end.value));
-        const ex = extraEdit();
-        if (made && made.id && ex) {
-          const all = loadEdits();
-          all[`${calendarId}|${made.id}`] = ex;
-          saveEdits(all);
-        }
-        putEventLocally(cal, made); // 読み直しを待たずに、カレンダーに出す
-        if (x.orig) removeTentative(x.orig.id); // 保存済みの仮シフトの時間なら、その仮シフトは消す（二重に数えない）
-        extraTimes.splice(extraTimes.indexOf(x), 1);
-        x.row.remove();
-      }));
-      const failed = results.find(r => r.status === "rejected");
-      if (failed) throw failed.reason;
-      const created = await createEvent(calendarId, buildEvent());
-      putEventLocally(cal, created);
-      // 入れた休憩・ボーナス・メモは、予定を押した画面の設定として引き継ぐ
-      if (created && created.id) {
-        const e = {};
-        if (breakInput.value !== "") e.breakMin = Number(breakInput.value);
-        if (Number(bonus.value) > 0) e.bonus = Number(bonus.value);
-        if (bonusNote.value.trim()) e.bonusNote = bonusNote.value.trim();
-        if (Object.keys(e).length > 0) {
-          const all = loadEdits();
-          all[`${calendarId}|${created.id}`] = e;
-          saveEdits(all);
-        }
-      }
+      // 1日・1つのバイト先につき1つの終日の予定にして、時間はメモの後ろに1行ずつ書く（calendar-memo.js）
+      // 同じ日・同じバイト先の予定（新しい形）がもうあれば、そのメモに時間を足す
+      const times = [{ start: start.value, end: end.value },
+        ...activeExtras().map(x => ({ start: x.start.value, end: x.end.value }))];
+      const existing = items.find(x => x.base && x.cal.id === calendarId && x.shift &&
+        x.shift.day === date.value && x.shift.place === place.value && (x.shift.role || "") === (role.value || ""));
+      const target = existing ? existing.base : null;
+      if (target) times.unshift(...parseTimeLines(target.description));
+      // 入れた休憩・ボーナス・メモは、予定を押した画面の設定として引き継ぐ（足す予定に設定があれば、それと合わせる）
+      const e = {};
+      if (breakInput.value !== "") e.breakMin = Number(breakInput.value);
+      if (Number(bonus.value) > 0) e.bonus = Number(bonus.value);
+      if (bonusNote.value.trim()) e.bonusNote = bonusNote.value.trim();
+      const edit = target ? mergeEdits([loadEdits()[`${calendarId}|${target.id}`], e]) : e;
+      await writeDayShift({ cal, day: date.value, summary: eventSummary(), times, target, edit });
+      // まとめて出していた保存済みの仮シフトの時間も、カレンダーに入ったので消す（二重に数えない）
+      for (const x of extraTimes) if (x.orig) removeTentative(x.orig.id);
       // 仮シフトから入れたなら、仮シフトは消す（二重に数えないため）
       // 未定の仮シフト（回数つき）なら、1回分だけ減らす
       if (splitFrom) finishSplit();
