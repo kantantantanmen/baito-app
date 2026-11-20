@@ -528,33 +528,37 @@ function renderAll() {
 }
 
 // 前の形（時間つきの予定）のシフトがあれば、新しい形（1日・1つのバイト先につき終日の予定1つ、時間はメモ）に
-// 書き直すボタンを出す（読み込んだ範囲の、書き込めるカレンダーの分）
+// 自動で書き直す（読み込んだ範囲の、書き込めるカレンダーの分）
+// 書き直せなかった予定は、この画面を開いている間はもう試さない（何度も失敗し続けないように）。開き直すとまた試す
+const convertTried = new Set(); // 試した予定（"カレンダーID|予定ID"）
+let convertFailed = 0;          // 最後に書き直せなかった日の数
 function renderConvertBox() {
   convertBox.textContent = "";
-  if (!loadedStart || converting) return;
-  const old = oldStyleShifts(items);
-  if (old.length === 0) return;
-  const button = el("button", "", "新しい形に書き直す");
-  button.type = "button";
-  button.onclick = async () => {
-    if (!confirm(`時間つきのシフトの予定 ${old.length}件を、1日・1つのバイト先ごとに1つの終日の予定にまとめ直します。` +
-                 "時間はメモの後ろに書き、元の予定は消します。よろしいですか？")) return;
+  if (!loadedStart) return;
+  if (converting) {
+    convertBox.textContent = "Google カレンダーのシフトを、終日の予定＋メモに時間の形に書き直しています...";
+    return;
+  }
+  const old = oldStyleShifts(items).filter(x => !convertTried.has(editKey(x)));
+  if (old.length > 0) {
     converting = true;
-    convertBox.textContent = "書き直しています...";
-    try {
-      const { failed } = await convertOldShifts(items, items);
-      if (failed > 0) alert(`${failed}日分は書き直せませんでした。もう一度押してください。`);
-    } finally {
-      converting = false;
-      renderAll();
-      loadMonth();
-    }
-  };
-  convertBox.append(
-    el("span", "", `Google カレンダーに、前の形（時間つき）のシフトの予定が ${old.length}件あります。` +
-                   "終日の予定にまとめて、時間をメモに書く形に直せます。"),
-    button,
-  );
+    for (const x of old) convertTried.add(editKey(x));
+    setTimeout(async () => {
+      renderConvertBox(); // 「書き直しています」を出す
+      try {
+        convertFailed = (await convertOldShifts(old, items)).failed;
+      } finally {
+        converting = false;
+        renderAll();
+        loadMonth();
+      }
+    });
+    return;
+  }
+  if (convertFailed > 0) {
+    convertBox.textContent = `Google カレンダーのシフトのうち ${convertFailed}日分は、新しい形に書き直せませんでした。` +
+      "アプリを開き直すと、もう一度書き直します。";
+  }
 }
 
 // ===== シフトの追加 =====
