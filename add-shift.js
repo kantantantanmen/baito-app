@@ -612,7 +612,7 @@ function openAddDialog(day, calendars, onAdded, options = {}) {
       // 同じ日・同じバイト先の予定（新しい形）がもうあれば、そのメモに時間を足す
       const times = [{ start: start.value, end: end.value },
         ...activeExtras().map(x => ({ start: x.start.value, end: x.end.value }))];
-      const existing = items.find(x => x.base && x.cal.id === calendarId && x.shift &&
+      const existing = items.find(x => x.base && x.base.start.date && x.cal.id === calendarId && x.shift &&
         x.shift.day === date.value && x.shift.place === place.value && (x.shift.role || "") === (role.value || ""));
       const target = existing ? existing.base : null;
       if (target) times.unshift(...parseTimeLines(target.description));

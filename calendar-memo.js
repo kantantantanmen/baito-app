@@ -108,14 +108,18 @@ function expandMemoShifts(list) {
   const out = [];
   for (const item of list) {
     const ev = item.event;
-    const times = ev.start && ev.start.date ? parseTimeLines(ev.description) : [];
+    // メモに時間が書いてあれば、メモの時間を使う（終日の予定でも、時間つきの予定でも）
+    // 書いてなければ、Google カレンダーの予定の時間をそのまま使う（終日の予定はシフトにしない）
+    const times = ev.start ? parseTimeLines(ev.description) : [];
     if (times.length === 0) {
       out.push(item);
       continue;
     }
+    // その日：終日の予定はその日、時間つきの予定は始まる日
+    const day = ev.start.date || dateKey(new Date(ev.start.dateTime));
     times.forEach((t, i) => {
       out.push({
-        event: { ...ev, ...eventTimes(ev.start.date, t.start, t.end) },
+        event: { ...ev, ...eventTimes(day, t.start, t.end) },
         cal: item.cal,
         base: ev,
         lineIndex: i,
@@ -148,6 +152,13 @@ function mergeEdits(list) {
 //   edit    : この予定の設定（休憩・ボーナスなど）。undefined なら設定は変えない
 // 書いてから消す（途中で失敗しても、シフトが消えてなくならないように）
 async function writeDayShift({ cal, day, summary, times, target = null, others = [], edit }) {
+  // 書き換える予定が時間つきなら、書き換えずに新しい終日の予定を作り、元の予定は消す
+  // （時間つきの予定を終日に書き換えると、元の時刻が残ってうまくいかないことがあるため）
+  if (target && !target.start.date) {
+    others = [target, ...others];
+    if (!summary) summary = target.summary;
+    target = null;
+  }
   const otherEvents = [];
   const seen = new Set(target ? [target.id] : []);
   for (const ev of others) {
@@ -183,9 +194,11 @@ async function writeDayShift({ cal, day, summary, times, target = null, others =
 
 // ===== 前の形（時間つき）のシフトを、新しい形に書き直す =====
 // 書き込めるカレンダーにある、時間つきのシフトの予定（バイト先に当てはまるもの）
+// メモに時間が書いてある時間つきの予定も入る（その時間はメモの時間。x.base が元の時間つきの予定）
 function oldStyleShifts(list) {
   const writable = (cal) => cal.accessRole === "owner" || cal.accessRole === "writer";
-  return list.filter(x => x.shift && !x.base && !x.tentative && x.event.start.dateTime && writable(x.cal));
+  const original = (x) => x.base || x.event;
+  return list.filter(x => x.shift && !x.tentative && original(x).start.dateTime && writable(x.cal));
 }
 
 // 同じカレンダー・同じ日・同じバイト先（と役職）ごとに、終日の予定1つにまとめ直す
@@ -208,21 +221,24 @@ async function convertOldShifts(list, allItems) {
   const convertGroup = async (group) => {
     const first = group[0];
     const day = first.shift.day;
-    // 同じ日・同じバイト先の、新しい形の予定（あればそこに足す）
-    const existing = allItems.find(x => x.base && x.cal.id === first.cal.id && x.shift &&
+    // 同じ日・同じバイト先の、新しい形（終日）の予定（あればそこに足す）
+    const existing = allItems.find(x => x.base && x.base.start.date && x.cal.id === first.cal.id && x.shift &&
       x.shift.day === day && x.shift.place === first.shift.place && (x.shift.role || "") === (first.shift.role || ""));
     const target = existing ? existing.base : null;
     const times = [
       ...(target ? parseTimeLines(target.description) : []),
       ...group.map(x => ({ start: hhmm(new Date(x.event.start.dateTime)), end: hhmm(new Date(x.event.end.dateTime)) })),
     ];
-    const edit = mergeEdits([
-      ...(target ? [edits[`${first.cal.id}|${target.id}`]] : []),
-      ...group.map(x => edits[editKey(x)]),
-    ]);
+    // 設定（ボーナスなど）：同じ予定のメモの時間がいくつあっても、1回だけ数える
+    const keys = [...new Set([
+      ...(target ? [`${first.cal.id}|${target.id}`] : []),
+      ...group.map(x => editKey(x)),
+    ])];
+    const edit = mergeEdits(keys.map(k => edits[k]));
     try {
+      // 消すのは元の予定（メモの時間で分けたものは、元の時間つきの予定を1回だけ消す）
       await writeDayShift({ cal: first.cal, day, summary: first.event.summary, times, target,
-                            others: group.map(x => x.event), edit });
+                            others: group.map(x => x.base || x.event), edit });
     } catch (err) {
       console.error(err);
       failed++;

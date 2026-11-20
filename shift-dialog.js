@@ -323,7 +323,8 @@ function openShiftDialog(item, onChange, onReload = () => {}) {
 
     // 1日・1つのバイト先につき1つの終日の予定にして、時間はメモに書く（calendar-memo.js）
     //   開いた予定が新しい形ならそれを書き換え、なければ新しく作る。ほかの予定（前の形・まとめた分）は消す
-    const target = item.base || bases[0] || null;
+    //   書き換えるのは、新しい形（終日）の予定（開いた予定を先に選ぶ）。メモに時間を書いた時間つきの予定は消して作り直す
+    const target = [item.base, ...bases].find(b => b && b.start.date) || null;
     const others = origs.map(x => x.base || x.event);
     const times = timeRows.map(r => ({ start: r.start.value, end: r.end.value }));
     // 設定：開いた予定の入力に、まとめるほかの予定（× で消したものは除く）のボーナスなどを足す
