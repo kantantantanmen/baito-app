@@ -778,6 +778,17 @@ document.getElementById("summary-close").onclick = closeDrawer;
 for (const button of document.querySelectorAll(".menu-item")) {
   button.addEventListener("click", closeDrawer);
 }
+// アプリに戻ってきたとき（ほかのアプリから切り替えて、画面がまた表示されたとき）に、予定を読み直す
+// （Google カレンダーアプリで入れた予定を、開き直さなくても出すため。読み直している間は前の予定で表示しておく）
+// 続けて切り替えたときに何度も読まないように、前に戻ってきてから10秒たっていなければ読まない
+let lastResume = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !isLoggedIn) return;
+  if (Date.now() - lastResume < 10000) return;
+  lastResume = Date.now();
+  loadMonth();
+});
+
 showView("calendar");
 loadMonth();      // ログイン前でも空のカレンダーと集計を表示
 initGoogle(onLogin);
