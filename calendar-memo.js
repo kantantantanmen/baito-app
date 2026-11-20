@@ -14,18 +14,26 @@
 //   時間と区切りだけの行を「時間の行」とする（「17時に集合」のような文の行は、時間として読まない）
 const TIME_TOKEN = "(\\d{1,2})(?:[:：](\\d{2})|時(?:(\\d{1,2})分|(半))?)";
 // おわりの前の「翌」は読み飛ばす（おわりがはじめより前なら、次の日に終わるとして計算するので）
-const TIME_RANGE_RE = new RegExp(`${TIME_TOKEN}\\s*(?:[〜~～\\-－ー–—]|から)\\s*翌?${TIME_TOKEN}`, "g");
+//   つなぐ記号：〜 ~ ～ と、いろいろな横棒（- － ー ｰ ‐ ‑ − – — ― ─）
+const TIME_RANGE_RE = new RegExp(
+  `${TIME_TOKEN}\\s*(?:[〜~～\\-－ーｰ‐‑−–—―─]|から)\\s*翌?${TIME_TOKEN}`, "g");
 const TIME_SEPARATORS_RE = /^[，．,.、\s　]*$/;
+
+// 改行として扱う文字：CR LF・CR と、スマホで入ることがある行区切りの文字（U+2028・U+2029・U+0085）
+const LINE_BREAKS_RE = new RegExp(
+  String.fromCharCode(13) + String.fromCharCode(10) + "?|[" + String.fromCharCode(13, 0x2028, 0x2029, 0x85) + "]", "g");
 
 // メモの中身を、ただの文字にする（Google カレンダーの画面で書いたメモは HTML のことがある）
 function memoText(desc) {
   if (!desc) return "";
-  if (!/<[a-z!/][\s\S]*>/i.test(desc)) return desc.replace(/\r\n?/g, "\n");
+  // 改行の書き方（\r\n・\r・スマホで入る行区切りの文字）は、どれも \n にそろえる
+  const lines = (text) => text.replace(LINE_BREAKS_RE, String.fromCharCode(10));
+  if (!/<[a-z!/][\s\S]*>/i.test(desc)) return lines(desc);
   const withBreaks = desc
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|li)>/gi, "\n");
   const doc = new DOMParser().parseFromString(withBreaks, "text/html");
-  return (doc.body.textContent || "").replace(/ /g, " ");
+  return lines((doc.body.textContent || "").replace(/ /g, " "));
 }
 
 // 時・分 → "09:00"（24時より後の書き方は次の日の時刻にする。例：25時 → 01:00）
