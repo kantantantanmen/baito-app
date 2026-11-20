@@ -7,8 +7,15 @@
 // （給料の計算・カレンダーの表示・重なりの判定などは、今までの時間つきの予定と同じしくみで動く）
 // 前の形（時間つきの予定）もそのまま読める。アプリで直したときや「書き直す」を押したときに、新しい形にする
 
-// メモの中の時間の行（前後の空白は無視。〜 のほか ~ や - でもよい）
-const TIME_LINE_RE = /^(\d{1,2}):(\d{2})\s*[〜~～\-－ー–—]\s*(\d{1,2}):(\d{2})$/;
+// メモの中の時間の行
+//   時刻の書き方：「17:00」「17：00」「17時」「17時30分」「17時半」（全角の数字でもよい）
+//   時間（はじめ〜おわり）：〜 ~ ～ - － ー – — 「から」でつなぐ
+//   1行に時間が2つ以上あるとき：， ． , . 、 空白（全角・半角）で区切る
+//   時間と区切りだけの行を「時間の行」とする（「17時に集合」のような文の行は、時間として読まない）
+const TIME_TOKEN = "(\\d{1,2})(?:[:：](\\d{2})|時(?:(\\d{1,2})分|(半))?)";
+// おわりの前の「翌」は読み飛ばす（おわりがはじめより前なら、次の日に終わるとして計算するので）
+const TIME_RANGE_RE = new RegExp(`${TIME_TOKEN}\\s*(?:[〜~～\\-－ー–—]|から)\\s*翌?${TIME_TOKEN}`, "g");
+const TIME_SEPARATORS_RE = /^[，．,.、\s　]*$/;
 
 // メモの中身を、ただの文字にする（Google カレンダーの画面で書いたメモは HTML のことがある）
 function memoText(desc) {
@@ -21,9 +28,32 @@ function memoText(desc) {
   return (doc.body.textContent || "").replace(/ /g, " ");
 }
 
-// "9:00" → "09:00"
+// 時・分 → "09:00"（24時より後の書き方は次の日の時刻にする。例：25時 → 01:00）
 function padTime(h, m) {
-  return `${String(Number(h)).padStart(2, "0")}:${m}`;
+  return `${String(Number(h) % 24).padStart(2, "0")}:${String(Number(m) || 0).padStart(2, "0")}`;
+}
+
+// 1行を読む。時間と区切りだけの行なら、その時間 [{ start, end }, ...]。そうでなければ null
+function parseTimeLine(line) {
+  // 全角の数字は半角にする
+  const text = line.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).trim();
+  if (!text) return null;
+  const times = [];
+  // 時刻の分：「:00」の形、「30分」の形、「半」なら30分、何もなければ0分
+  const minuteOf = (colon, fun, han) => (colon ?? fun ?? (han ? "30" : "0"));
+  for (const m of text.matchAll(TIME_RANGE_RE)) {
+    const start = padTime(m[1], minuteOf(m[2], m[3], m[4]));
+    const end = padTime(m[5], minuteOf(m[6], m[7], m[8]));
+    if (start !== end) times.push({ start, end });
+  }
+  if (times.length === 0) return null;
+  // 時間を取り除いた残りが区切りだけでなければ、ふつうの文の行
+  return TIME_SEPARATORS_RE.test(text.replace(TIME_RANGE_RE, "")) ? times : null;
+}
+
+// 時間の行か
+function isTimeLine(line) {
+  return parseTimeLine(line) !== null;
 }
 
 // 同じ時間は1つだけにして、早い順に並べる
@@ -36,14 +66,7 @@ function uniqueTimes(times) {
 // メモから時間の行を読み取る → [{ start: "17:00", end: "22:00" }, ...]（早い順。同じ時間が2行あれば1つ）
 function parseTimeLines(desc) {
   const times = [];
-  for (const line of memoText(desc).split("\n")) {
-    const m = line.trim().match(TIME_LINE_RE);
-    if (!m) continue;
-    const start = padTime(m[1], m[2]);
-    const end = padTime(m[3], m[4]);
-    if (start === end) continue;
-    times.push({ start, end });
-  }
+  for (const line of memoText(desc).split("\n")) times.push(...(parseTimeLine(line) || []));
   return uniqueTimes(times);
 }
 
@@ -51,7 +74,7 @@ function parseTimeLines(desc) {
 function memoWithoutTimes(desc) {
   return memoText(desc)
     .split("\n")
-    .filter(line => !TIME_LINE_RE.test(line.trim()))
+    .filter(line => !isTimeLine(line))
     .join("\n")
     .trim();
 }
