@@ -26,7 +26,14 @@ function padTime(h, m) {
   return `${String(Number(h)).padStart(2, "0")}:${m}`;
 }
 
-// メモから時間の行を読み取る → [{ start: "17:00", end: "22:00" }, ...]（早い順）
+// 同じ時間は1つだけにして、早い順に並べる
+function uniqueTimes(times) {
+  const seen = new Map();
+  for (const t of times) seen.set(`${t.start}|${t.end}`, t);
+  return [...seen.values()].sort((a, b) => a.start.localeCompare(b.start));
+}
+
+// メモから時間の行を読み取る → [{ start: "17:00", end: "22:00" }, ...]（早い順。同じ時間が2行あれば1つ）
 function parseTimeLines(desc) {
   const times = [];
   for (const line of memoText(desc).split("\n")) {
@@ -37,7 +44,7 @@ function parseTimeLines(desc) {
     if (start === end) continue;
     times.push({ start, end });
   }
-  return times.sort((a, b) => a.start.localeCompare(b.start));
+  return uniqueTimes(times);
 }
 
 // メモのうち、時間の行ではない文（前後の空行は除く）
@@ -51,8 +58,7 @@ function memoWithoutTimes(desc) {
 
 // 書き込むメモを作る：もとの文（時間の行は除く）の後ろに、時間を1行ずつ（1つの時間のあとに改行）
 function buildMemo(keepText, times) {
-  const timesText = [...times]
-    .sort((a, b) => a.start.localeCompare(b.start))
+  const timesText = uniqueTimes(times) // 同じ時間は1回だけ書く（途中で閉じて、やり直したときなど）
     .map(t => `${t.start}〜${t.end}\n`)
     .join("");
   return keepText ? `${keepText}\n${timesText}` : timesText;
@@ -163,7 +169,12 @@ async function convertOldShifts(list, allItems) {
   const edits = loadEdits();
   const hhmm = (d) => d.toTimeString().slice(0, 5);
   let failed = 0;
-  for (const group of groups.values()) {
+  // 1日分ずつ書き直す。早く終わるように、4日分ずつ同時に進める（日ごとに書く予定が別なので、ぶつからない）
+  const queue = [...groups.values()];
+  const worker = async () => {
+    for (let group = queue.shift(); group; group = queue.shift()) await convertGroup(group);
+  };
+  const convertGroup = async (group) => {
     const first = group[0];
     const day = first.shift.day;
     // 同じ日・同じバイト先の、新しい形の予定（あればそこに足す）
@@ -185,6 +196,7 @@ async function convertOldShifts(list, allItems) {
       console.error(err);
       failed++;
     }
-  }
+  };
+  await Promise.all([1, 2, 3, 4].map(worker));
   return { groups: groups.size, failed };
 }

@@ -536,7 +536,7 @@ function renderConvertBox() {
   convertBox.textContent = "";
   if (!loadedStart) return;
   if (converting) {
-    convertBox.textContent = "Google カレンダーのシフトを、終日の予定＋メモに時間の形に書き直しています...";
+    convertBox.textContent = "Google カレンダーのシフトを、終日の予定＋メモに時間の形に書き直しています（終わるまで閉じないでください）...";
     return;
   }
   const old = oldStyleShifts(items).filter(x => !convertTried.has(editKey(x)));
